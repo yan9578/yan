@@ -1,0 +1,27 @@
+import {chromium} from 'playwright';
+import assert from 'node:assert/strict';
+import {existsSync} from 'node:fs';
+import {platformDatabase} from '../test-support/platform-db.js';
+import {seedProvider,testConfig} from '../test-support/provider.js';
+import {createPublicServer} from '../server/node-server.js';
+
+const pg=await platformDatabase(),{provider,password}=await seedProvider(pg),config=testConfig({captchaSiteKey:'test-only-site-key'});
+const server=createPublicServer(config,{provider,logger:()=>{}});await new Promise(r=>server.listen(0,'127.0.0.1',r));config.origin='http://127.0.0.1:'+server.address().port;
+const browser=await chromium.launch({executablePath:process.env.BROWSER_PATH||(existsSync('/usr/bin/chromium')?'/usr/bin/chromium':undefined),args:process.env.CI||existsSync('/.dockerenv')?['--no-sandbox']:[]});
+const sdk="window.turnstile={render:(selector,options)=>{window.captchaOptions=options;window.captchaRenders=(window.captchaRenders||0)+1;return 'test-widget';},reset:()=>{window.captchaResets=(window.captchaResets||0)+1;}};";
+try{
+ const context=await browser.newContext();await context.route('https://challenges.cloudflare.com/**',r=>r.fulfill({contentType:'text/javascript',body:sdk}));const page=await context.newPage();page.setDefaultTimeout(10000);
+ await page.goto(config.origin);await page.waitForFunction(()=>!!window.captchaOptions);assert.equal(await page.locator('#captcha-container').isVisible(),true);assert.equal(await page.evaluate(()=>window.captchaRenders),1);
+ await page.locator('#login-form [name=username]').fill('a@example.invalid');await page.locator('#login-form [name=password]').fill(password);
+ const calls=provider.calls.filter(c=>c.path?.includes('grant_type=password')).length;
+ await page.locator('#login-form button[type=submit]').click();await page.locator('#auth-error').filter({hasText:'Conclua a verificação'}).waitFor();assert.equal(provider.calls.filter(c=>c.path?.includes('grant_type=password')).length,calls);
+ await page.evaluate(()=>window.captchaOptions.callback('test-only-captcha-token'));await page.locator('#login-form button[type=submit]').click();await page.locator('#workspace:not([hidden])').waitFor();assert.equal(provider.calls.find(c=>c.path?.includes('grant_type=password')).body.gotrue_meta_security.captcha_token,'test-only-captcha-token');
+ // Falha de rede ao carregar o SDK produz aviso e permite uma nova tentativa.
+ const retryContext=await browser.newContext();let attempts=0;await retryContext.route('https://challenges.cloudflare.com/**',r=>++attempts===1?r.abort():r.fulfill({contentType:'text/javascript',body:sdk}));const retry=await retryContext.newPage();retry.setDefaultTimeout(10000);await retry.goto(config.origin);await retry.locator('#captcha-retry:not([hidden])').waitFor();assert.match(await retry.locator('#captcha-status').textContent(),/Não foi possível/);await retry.locator('#captcha-retry').click();await retry.waitForFunction(()=>!!window.captchaOptions);
+ await retry.evaluate(()=>window.captchaOptions['error-callback']('test-only-error'));await retry.locator('#captcha-retry:not([hidden])').waitFor();await retry.locator('#captcha-retry').click();assert.ok(await retry.evaluate(()=>window.captchaResets>=1));
+ // Um widget que não conclui recebe prazo finito, sem liberar autenticação.
+ await retry.clock.install();await retry.evaluate(()=>window.captchaOptions['error-callback']('test-timeout-retry'));await retry.locator('#captcha-retry').click();await retry.clock.fastForward(31000);assert.match(await retry.locator('#captcha-status').textContent(),/Não foi possível/);assert.equal(await retry.locator('#captcha-retry').isVisible(),true);
+ await retry.evaluate(()=>window.captchaOptions.callback('test-only-token'));assert.match(await retry.locator('#captcha-status').textContent(),/concluída/);
+ await retry.getByRole('button',{name:'Criar conta',exact:true}).click();await retry.locator('#signup-form:not([hidden])').waitFor();assert.equal(await retry.locator('#captcha-container').isVisible(),true);
+ console.log('PASS: CAPTCHA iniciado no primeiro login, token encaminhado, envio sem verificação bloqueado, falha de SDK, retry, callback de erro e prazo de espera. SDK Cloudflare e Auth simulados; navegador, API e PostgreSQL executados.');
+}finally{await browser.close();await new Promise(r=>{server.close(r);server.closeAllConnections();});await pg.close();}

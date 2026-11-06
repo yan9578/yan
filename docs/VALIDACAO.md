@@ -58,3 +58,7 @@ Depois de concluir PUBLICACAO.md, use dados fictícios e endereços de e-mail qu
 Neste ambiente não há credenciais administrativas vinculadas ao projeto, e o acesso de rede ao domínio Supabase do proprietário é bloqueado. Portanto, não foi possível aplicar migrações, verificar RLS remota, criar administradores remotos ou validar e-mails reais. Não há SMTP configurado informado pelo proprietário. Os workflows foram preparados, mas não executados na conta GitHub. Não foi realizado deploy no Netlify.
 
 Não foi feito teste de carga nem auditoria de segurança independente. Os limites atuais de documentos são 5.000 registros de caixa e 50.000 lançamentos de DRE por conta, além de limites de tamanho e backup. Valide desempenho e custo antes de aumentar esses limites ou abrir o serviço em grande escala.
+
+## Regressão do CAPTCHA
+
+O teste de navegador também simula o SDK do Turnstile para conferir inicialização na primeira tela, bloqueio de envio sem token, encaminhamento do token, falha no carregamento, botão de nova tentativa e prazo finito de espera. O fluxo real da Cloudflare e as chaves/domínios configurados pelo proprietário ainda precisam de conferência no site publicado.
