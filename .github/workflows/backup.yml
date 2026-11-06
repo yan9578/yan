@@ -1,5 +1,11 @@
 name: Backup financeiro criptografado
 on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/backup.yml'
+      - 'scripts/verify-backup.mjs'
+      - 'server/verify-backup.js'
   schedule:
     - cron: '0 5 * * *'
   workflow_dispatch:
@@ -24,7 +30,7 @@ jobs:
         uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
         with:
           node-version: '24'
-      - run: npm ci --omit=dev --ignore-scripts
+      - run: npm ci --ignore-scripts
       - id: backup
         run: node scripts/backup-cloud.mjs backups/financeiro.ccbackup
       - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -33,6 +39,8 @@ jobs:
           path: backups/financeiro.ccbackup
           retention-days: 30
           if-no-files-found: error
+      - name: Conferir recuperação em PostgreSQL isolado
+        run: node scripts/verify-backup.mjs backups/financeiro.ccbackup
       - run: node scripts/report-backup.mjs --uploaded backups/financeiro.ccbackup
       - if: failure() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success'
         run: node scripts/report-backup.mjs --failed

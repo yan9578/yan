@@ -57,7 +57,7 @@ Use as variáveis de ambiente do **mesmo projeto Netlify**, com disponibilidade 
 | `PRIVACY_CONTROLLER` | Nome real do responsável pelo tratamento |
 | `PRIVACY_CONTACT_EMAIL` | Endereço real para suporte e direitos sobre dados |
 
-As duas últimas informações ainda não foram informadas pelo proprietário. A política deve ser revisada conforme o responsável, região escolhida, fornecedores e retenções efetivas. O texto preparado não equivale a uma certificação de conformidade com a LGPD.
+O proprietário informou Yan como responsável e yansiqueirapedro@gmail.com como contato público. Esses valores são os padrões deste piloto e podem ser substituídos pelas variáveis acima. A política deve ser revisada conforme o responsável, região escolhida, fornecedores e retenções efetivas. O texto preparado não equivale a uma certificação de conformidade com a LGPD.
 
 Guarde `SESSION_SECRET` em um gerenciador de segredos. Trocá-lo invalida os tokens criptografados e a chave dos rascunhos locais existentes; planeje a troca e exporte pendências antes. Não use a mesma chave para backups.
 
