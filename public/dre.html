@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Caixa Claro · DRE</title>
+<link rel="stylesheet" href="/dre.css">
+</head>
+<body>
+
+<main id="dre-main" aria-busy="true">
+<div id="warning" class="warning" role="alert" hidden></div>
+<div class="banner">
+  <span id="mode-label"></span>
+  <button id="mode" class="btn">Usar meus dados</button>
+</div>
+<div class="intro">
+  <div><h1>Seu resultado, com clareza.</h1>
+  <p class="muted">Uma DRE simples para uma ou várias empresas.</p></div>
+  <div class="actions">
+    <button id="csv" class="btn">↓ CSV</button>
+    <button id="add" class="btn primary">＋ Lançamento</button>
+  </div>
+</div>
+<div class="filters">
+  <label>EMPRESA<select id="company"></select></label>
+  <label>COMPETÊNCIA
+    <input id="month" type="month" min="1901-01" max="2198-12">
+  </label>
+  <label class="check"><input id="ytd" type="checkbox">Ano acumulado</label>
+  <span class="basis">● Regime de competência</span>
+</div>
+<nav aria-label="Navegação">
+  <button data-view="dashboard" class="active">Visão geral</button>
+  <button data-view="dre-view">DRE detalhada</button>
+  <button data-view="ledger-view">Lançamentos</button>
+  <button data-view="companies-view">Empresas</button>
+</nav>
+<div class="cards" id="cards">
+  <div class="card"><label>Receita líquida</label>
+    <strong id="revenue"></strong><small>Receita bruta menos deduções</small>
+  </div>
+  <div class="card"><label>Custos e despesas</label>
+    <strong id="expenses"></strong><small>Inclui depreciação, juros e tributos</small>
+  </div>
+  <div class="card"><label id="profit-label">Lucro líquido</label>
+    <strong id="profit"></strong><small>Resultado do período selecionado</small>
+  </div>
+  <div class="card"><label>Margem líquida</label>
+    <strong id="margin"></strong><small>Resultado ÷ receita líquida</small>
+  </div>
+</div>
+<div id="empty" class="panel empty" hidden>
+  <h2>Sua primeira empresa. Seu primeiro passo.</h2>
+  <p class="muted">Cadastre uma empresa para começar seus lançamentos.</p>
+  <button class="btn primary" data-new-company>＋ Cadastrar empresa</button>
+</div>
+<section id="dashboard">
+  <div class="grid">
+    <div class="panel">
+      <h2>Como seu resultado evoluiu</h2>
+      <p class="muted">Últimos 6 meses ·
+        <span style="color:#718ddd">■ Receita líquida</span> ·
+        <span style="color:#c99c65">■ Gastos</span>
+      </p>
+      <div id="chart" class="trend"></div>
+      <p class="notes">Clique no mês para selecioná-lo. Valores negativos
+        de receita aparecem nos relatórios; as barras mostram apenas
+        valores positivos.</p>
+    </div>
+    <div class="panel">
+      <h2>O que os números estão dizendo?</h2>
+      <p id="insight" class="muted"></p>
+      <h2 style="margin-top:24px">O saldo do banco não é o lucro.</h2>
+      <p class="notes">Empréstimos, aportes, compras de ativos e estoque
+        e distribuição de lucros ficam fora da DRE. Use as categorias
+        patrimoniais para essas movimentações.</p>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="section-head">
+      <div><h2>Uma visão de cada empresa</h2>
+      <span id="period-name" class="muted"></span></div>
+      <button class="link" data-view="dre-view">Ver DRE detalhada →</button>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Empresa</th><th>Receita líquida</th>
+        <th>Custos e despesas</th><th>Resultado</th><th>Margem</th></tr></thead>
+        <tbody id="portfolio"></tbody>
+      </table>
+    </div>
+    <p class="notes">Consolidado gerencial por soma, sem eliminar
+      operações entre empresas.</p>
+  </div>
+</section>
+<section id="dre-view" hidden>
+  <div class="panel">
+    <div class="section-head">
+      <div><h2 id="report-title"></h2>
+      <span id="report-period" class="muted"></span></div>
+      <div class="actions no-print">
+        <label class="muted"><input type="checkbox" id="details" checked>
+        Detalhar</label>
+        <button class="btn" id="print">Imprimir / PDF</button>
+      </div>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Descrição</th><th id="heading-current"></th>
+        <th id="heading-old"></th><th>AV %</th></tr></thead>
+        <tbody id="report"></tbody>
+      </table>
+    </div>
+    <p class="notes">AV é a participação na receita líquida atual;
+      não calculada se ela for zero ou negativa. Negativos reduzem
+      o resultado. DRE gerencial por competência, sem apuração automática
+      de impostos ou eliminação de operações entre empresas.</p>
+    <p id="outside" class="notes"></p>
+  </div>
+</section>
+<section id="ledger-view" hidden>
+  <div class="panel">
+    <div class="section-head">
+      <h2>Lançamentos do período</h2>
+      <input id="search" type="search" placeholder="Buscar descrição..."
+        style="padding:9px;border:1px solid #dce3ee;border-radius:6px;max-width:100%"
+        aria-label="Buscar lançamentos">
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Competência</th><th>Descrição / categoria</th>
+        <th>Empresa</th><th>Valor</th><th>Ações</th></tr></thead>
+        <tbody id="ledger"></tbody>
+      </table>
+    </div>
+    <div id="pager" class="pager"></div>
+  </div>
+</section>
+<section id="companies-view" hidden>
+  <div class="section-head">
+    <h2>Minhas empresas</h2>
+    <button class="btn primary" data-new-company>＋ Empresa</button>
+  </div>
+  <div id="companies" class="company-grid"></div>
+</section>
+<div class="backup no-print">
+  <span class="notes">Dados reais salvos na sua conta.
+    Exporte cópias de segurança.</span>
+  <div class="actions">
+    <button id="export" class="btn">↓ Backup</button>
+    <button id="import" class="btn">↑ Restaurar</button>
+    <input id="file" type="file" accept=".json,application/json" hidden>
+  </div>
+</div>
+<footer>
+  Uma venda de outubro recebida em novembro pertence à DRE de outubro.
+  Compras de estoque viram custo quando os itens são vendidos.
+  Informe tributos apurados sem duplicar valores entre categorias.<br>
+  Protótipo gerencial: não substitui a apuração contábil e fiscal.
+  Os lançamentos da DRE são separados dos lançamentos de caixa.
+</footer>
+</main>
+
+<dialog id="entry-dialog">
+<form id="entry-form">
+  <div class="dialog-head"><h2>Lançamento</h2>
+    <button type="button" class="close" data-close aria-label="Fechar">×</button>
+  </div>
+  <input id="entry-id" type="hidden">
+  <label>Empresa<select id="entry-company" required></select></label>
+  <label>Descrição<input id="entry-description" maxlength="180" required></label>
+  <label>Categoria<select id="entry-category" required></select></label>
+  <p id="entry-hint" class="notes"></p>
+  <div class="row">
+    <label>Valor (R$)<input id="entry-amount" inputmode="decimal"
+      placeholder="1.250,50" required></label>
+    <label>Competência<input id="entry-date" type="date"
+      min="1901-01-01" max="2198-12-31" required></label>
+  </div>
+  <div class="actions">
+    <button class="btn primary">Salvar</button>
+    <button type="button" class="btn" data-close>Cancelar</button>
+  </div>
+</form>
+</dialog>
+<dialog id="company-dialog">
+<form id="company-form">
+  <div class="dialog-head"><h2>Empresa</h2>
+    <button type="button" class="close" data-close aria-label="Fechar">×</button>
+  </div>
+  <input id="company-id" type="hidden">
+  <label>Nome<input id="company-name" maxlength="80" required></label>
+  <label>Setor (opcional)<input id="company-sector" maxlength="80"></label>
+  <button class="btn primary">Salvar empresa</button>
+</form>
+</dialog>
+<dialog id="confirm-dialog">
+  <div class="dialog-head"><h2>Confirmar ação</h2>
+    <button class="close" data-close aria-label="Fechar">×</button>
+  </div>
+  <p id="confirm-text" class="muted"></p>
+  <div class="actions">
+    <button id="confirm" class="btn primary">Confirmar</button>
+    <button class="btn" data-close>Voltar</button>
+  </div>
+</dialog>
+<div id="toast" role="status" aria-live="polite" hidden></div>
+
+
+
+
+<script type="module" src="/dre.js"></script></body>
+</html>

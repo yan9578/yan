@@ -1,0 +1,39 @@
+name: Backup financeiro criptografado
+on:
+  schedule:
+    - cron: '0 5 * * *'
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: backup-financeiro
+  cancel-in-progress: false
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    environment: backups
+    timeout-minutes: 20
+    env:
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      BACKUP_ENCRYPTION_KEY: ${{ secrets.BACKUP_ENCRYPTION_KEY }}
+    steps:
+      - id: checkout
+        uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - id: node
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6
+        with:
+          node-version: '24'
+      - run: npm ci --omit=dev --ignore-scripts
+      - id: backup
+        run: node scripts/backup-cloud.mjs backups/financeiro.ccbackup
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: backup-financeiro-${{ github.run_id }}
+          path: backups/financeiro.ccbackup
+          retention-days: 30
+          if-no-files-found: error
+      - run: node scripts/report-backup.mjs --uploaded backups/financeiro.ccbackup
+      - if: failure() && steps.checkout.outcome == 'success' && steps.node.outcome == 'success'
+        run: node scripts/report-backup.mjs --failed
+        continue-on-error: true

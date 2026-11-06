@@ -1,0 +1,13 @@
+.data/
+node_modules/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+
+dist/
+
+.env
+.env.*
+!.env.example
+backups/
+*.ccbackup

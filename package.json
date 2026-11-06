@@ -1,0 +1,21 @@
+{
+  "name": "caixa-claro",
+  "version": "0.3.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "test": "node --test test/*.test.js",
+    "build": "node scripts/build-cloud.mjs",
+    "backup:cloud": "node scripts/backup-cloud.mjs",
+    "restore:cloud": "node scripts/restore-cloud.mjs",
+    "test:e2e": "node scripts/test-browser.mjs"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "devDependencies": {
+    "@electric-sql/pglite": "0.5.15",
+    "playwright": "1.65.0"
+  }
+}

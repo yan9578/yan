@@ -1,0 +1,18 @@
+CAIXA CLARO — VERSÃO PÚBLICA EM PREPARAÇÃO
+
+Fluxo de caixa é a tela principal; DRE fica no menu, com a mesma conta.
+
+A nova versão exige Supabase e funções de servidor. A configuração está em
+docs/PUBLICACAO.md. Enviar somente HTML ou arrastar dist no Netlify não instala
+cadastro, recuperação e administração. Não use o instalador estático antigo.
+
+Teste local com Supabase configurado: Node.js 24 e
+node --env-file=.env server.js
+Abra o endereço exato de APP_ORIGIN (normalmente http://127.0.0.1:3000).
+
+Sem SUPABASE_URL, npm start mantém o teste SQLite privado antigo. Esse modo
+preserva .data/caixa.sqlite, mas não tem cadastro público ou recuperação por e-mail.
+
+Ainda é preciso configurar SMTP, permissões/migrações, segredos, backup externo
+e publicar o projeto completo. Não envie senhas ou chaves privadas no chat.
+Veja docs/ENTREGA.md para o estado real e docs/VALIDACAO.md para os testes.
