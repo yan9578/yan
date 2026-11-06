@@ -101,7 +101,10 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
   let identity=null,feature=null;
   try{
    if(!['GET','POST','PUT'].includes(method))throw new HttpError(405,'Método não permitido.');
-   if(request.headers.get('sec-fetch-site')==='cross-site')throw new HttpError(403,'Origem não autorizada.','BAD_ORIGIN');
+   // O diagnóstico público pode ser aberto por um link externo. APIs da conta
+   // e todas as alterações continuam exigindo as proteções de origem.
+   const publicConfig=method==='GET'&&path==='/api/config';
+   if(!publicConfig&&request.headers.get('sec-fetch-site')==='cross-site')throw new HttpError(403,'Origem não autorizada.','BAD_ORIGIN');
    if(method!=='GET'&&(request.headers.get('origin')!==config.origin||!request.headers.get('content-type')?.startsWith('application/json')))throw new HttpError(403,'Origem não autorizada.','BAD_ORIGIN');
    let body={};if(method!=='GET'){
     const raw=await request.text();if(Buffer.byteLength(raw)>2_000_000)throw new HttpError(413,'Solicitação muito grande.');
