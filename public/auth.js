@@ -8,6 +8,8 @@ export function showAuth(view='login'){
  const titles={login:['Seu caixa começa aqui.','Entre para acompanhar seu negócio.'],signup:['Seu negócio merece clareza.','Crie sua conta e confirme seu e-mail.'],recover:['Vamos recuperar seu acesso.','Você receberá um código temporário por e-mail.'],verify:['Confira seu e-mail.','Digite o código recebido. Ele é temporário e só pode ser usado uma vez.'],reset:['Escolha uma nova senha.','Use uma senha exclusiva para esta conta.']};
  const title=titles[view]||titles.login;$('#auth-title').textContent=title[0];$('#auth-subtitle').textContent=title[1];
  const needsCaptcha=['login','signup','recover','verify'].includes(view);
+ const captchaBlock=$('#captcha-block'),form=document.querySelector('[data-auth-panel="'+view+'"]');
+ if(captchaBlock&&form){const anchor=view==='verify'?$('#resend-code'):form.querySelector('button[type="submit"]');if(anchor)anchor.before(captchaBlock);captchaBlock.hidden=!needsCaptcha||!config.captchaSiteKey;}
  $('#captcha-container').hidden=!needsCaptcha||!config.captchaSiteKey;
  if(needsCaptcha&&config.captchaSiteKey)void loadCaptcha();
  else{captchaGeneration++;token='';clearTimeout(captchaTimer);if($('#captcha-status'))$('#captcha-status').hidden=true;if($('#captcha-retry'))$('#captcha-retry').hidden=true;}
@@ -42,7 +44,7 @@ async function loadCaptcha(){
   if(generation!==captchaGeneration||authBusy)return;
   if(widget!==null){window.turnstile.remove(widget);widget=null;}
   widget=window.turnstile.render('#captcha-container',{
-   sitekey:config.captchaSiteKey,retry:'never','refresh-expired':'manual','refresh-timeout':'manual',
+   sitekey:config.captchaSiteKey,size:window.matchMedia('(max-width: 420px)').matches?'compact':'normal',retry:'never','refresh-expired':'manual','refresh-timeout':'manual',
    callback:v=>{if(generation!==captchaGeneration||authBusy)return;clearTimeout(captchaTimer);token=v;tokenAt=performance.now();captchaStatus('Verificação concluída.');captchaRetry(false);},
    'expired-callback':()=>{if(generation!==captchaGeneration||authBusy)return;invalidateCaptcha('A verificação expirou. Faça uma nova verificação.');},
    'error-callback':()=>{if(generation===captchaGeneration&&!authBusy)captchaFailed();return true;},'timeout-callback':()=>{if(generation===captchaGeneration&&!authBusy)captchaFailed();},'unsupported-callback':()=>{if(generation===captchaGeneration&&!authBusy)captchaFailed();}
