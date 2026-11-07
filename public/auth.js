@@ -20,7 +20,12 @@ function captchaRetry(show){
  let button=$('#captcha-retry');if(!button){button=document.createElement('button');button.id='captcha-retry';button.type='button';button.className='text-button';button.textContent='Tentar verificação novamente';button.onclick=()=>loadCaptcha();$('#captcha-status').after(button);}
  button.hidden=!show||$('#captcha-container').hidden;
 }
-function captchaFailed(){clearTimeout(captchaTimer);token='';captchaStatus('Não foi possível concluir a verificação de segurança. Confira a conexão e tente novamente.');captchaRetry(true);}
+function invalidateCaptcha(message){
+ clearTimeout(captchaTimer);captchaGeneration++;token='';tokenAt=0;
+ if(widget!==null){try{window.turnstile?.remove(widget);}catch{}widget=null;}
+ captchaStatus(message);captchaRetry(true);
+}
+function captchaFailed(){invalidateCaptcha('Não foi possível concluir a verificação de segurança. Confira a conexão e tente novamente.');}
 function captchaWaiting(){clearTimeout(captchaTimer);token='';captchaStatus('Aguardando a verificação de segurança…');captchaRetry(false);captchaTimer=setTimeout(captchaFailed,30000);}
 async function loadCaptcha(){
  if(authBusy)return;const generation=++captchaGeneration;captchaWaiting();
@@ -39,14 +44,14 @@ async function loadCaptcha(){
   widget=window.turnstile.render('#captcha-container',{
    sitekey:config.captchaSiteKey,retry:'never','refresh-expired':'manual','refresh-timeout':'manual',
    callback:v=>{if(generation!==captchaGeneration||authBusy)return;clearTimeout(captchaTimer);token=v;tokenAt=performance.now();captchaStatus('Verificação concluída.');captchaRetry(false);},
-   'expired-callback':()=>{if(generation!==captchaGeneration||authBusy)return;clearTimeout(captchaTimer);token='';captchaStatus('A verificação expirou. Faça uma nova verificação.');captchaRetry(true);},
+   'expired-callback':()=>{if(generation!==captchaGeneration||authBusy)return;invalidateCaptcha('A verificação expirou. Faça uma nova verificação.');},
    'error-callback':()=>{if(generation===captchaGeneration&&!authBusy)captchaFailed();return true;},'timeout-callback':()=>{if(generation===captchaGeneration&&!authBusy)captchaFailed();},'unsupported-callback':()=>{if(generation===captchaGeneration&&!authBusy)captchaFailed();}
   });
  }catch{if(generation===captchaGeneration){widgetLoading=null;captchaFailed();}}
 }
 function requireCaptcha(){
  if(config.captchaSiteKey&&(!token||performance.now()-tokenAt>240000)){
-  if(token){token='';captchaStatus('A verificação expirou. Faça uma nova verificação.');captchaRetry(true);}
+  if(token)invalidateCaptcha('A verificação expirou. Faça uma nova verificação.');
   throw Error('Conclua a verificação de segurança antes de continuar. Se ela não terminar, clique em tentar novamente.');
  }
 }
@@ -61,7 +66,7 @@ async function submit(form,action){
   if(current==='verify'&&cooldown>Date.now())$('#resend-code').disabled=true;
   if(!$('#login-screen').hidden){
    if(current!==startedView&&['login','signup','recover','verify'].includes(current)&&config.captchaSiteKey)void loadCaptcha();
-   else if(captchaUsed){captchaStatus('Faça uma nova verificação para tentar novamente.');captchaRetry(true);}
+   else if(captchaUsed)invalidateCaptcha('Faça uma nova verificação para tentar novamente.');
   }
  }
 }
