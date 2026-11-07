@@ -8,9 +8,12 @@ export class Supabase{
   const data=await res.json().catch(()=>null);
   if(!res.ok){
    const error=new ProviderError(res.status,data?.error_code||data?.code,['REVISION_CONFLICT','INVALID_DATA','FORBIDDEN','INVALID_STATE','NOT_FOUND'].includes(data?.message)?data.message:undefined);
+   const publicMessage=String(data?.msg||data?.message||data?.error_description||'');
+   if(['Error sending confirmation email','Error sending recovery email','Error sending magic link email','Error sending reauthentication email'].includes(publicMessage))error.authFailure='EMAIL_DELIVERY_FAILED';
+   if(['Database error saving new user','Database error updating user','Database error loading user after sign-up'].includes(publicMessage))error.authFailure='AUTH_STORAGE_FAILED';
+   if(error.code==='email_address_not_authorized')error.authFailure='EMAIL_CONFIGURATION';
    if(error.code==='captcha_failed'){
-    const message=String(data?.msg||data?.message||data?.error_description||'');
-    error.captchaReason=['missing-input-secret','invalid-input-secret','missing-input-response','invalid-input-response','bad-request','timeout-or-duplicate','internal-error'].find(reason=>new RegExp('(?:^|[ (,])'+reason+'(?:$|[ ,)])').test(message));
+    error.captchaReason=['missing-input-secret','invalid-input-secret','missing-input-response','invalid-input-response','bad-request','timeout-or-duplicate','internal-error'].find(reason=>new RegExp('(?:^|[ (,])'+reason+'(?:$|[ ,)])').test(publicMessage));
    }
    throw error;
   }

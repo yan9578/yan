@@ -17,7 +17,7 @@ export async function api(path,method='GET',body){
  try{
   response=await fetch('/api/'+path,{method,credentials:'same-origin',headers:body!==undefined?{'Content-Type':'application/json'}:{},body:body===undefined?undefined:JSON.stringify(body),signal:AbortSignal.timeout(25000)});
   data=await response.json();
-  if(!response.ok){const error=Error(data.error||'Não foi possível concluir.');error.status=response.status;error.code=data.code;error.retryAfter=data.retryAfter;throw error;}
+  if(!response.ok){const error=Error(data.error||'Não foi possível concluir.');error.status=response.status;error.code=data.code;error.retryAfter=data.retryAfter;if(/^[a-f0-9]{16}$/.test(data.requestId||''))error.requestId=data.requestId;throw error;}
  }catch(cause){
   if(method==='PUT'&&['records','dre'].includes(path))sendState('pending',{scope:path,localSaved:!!draftId,localFailed:draftFailed,conflict:cause.status===409});
   if(!cause.status&&method==='PUT'&&['records','dre'].includes(path)){pendingReports.push({code:'SAVE_CONNECTION_FAILED',feature:path==='dre'?'dre':'cash'});if(pendingReports.length>10)pendingReports.shift();void reportConnectionFailures();}

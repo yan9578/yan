@@ -71,6 +71,8 @@ test('falha de CAPTCHA ou do provedor não simula envio de código; backup venci
   }
   provider.auth=async(path,...args)=>{if(path==='recover')throw new ProviderError(400,'email_address_not_authorized');return auth(path,...args);};
   const unavailable=client(handle,config,'smtp-error-ip');assert.equal((await unavailable.call('recover','POST',{email:'unknown@example.invalid',captchaToken:'test-token'})).status,503);assert.equal(unavailable.jar.has('cc_challenge'),false);
+  provider.auth=async(path,...args)=>{if(path==='recover')throw Object.assign(new ProviderError(500,'unexpected_failure'),{authFailure:'EMAIL_DELIVERY_FAILED'});return auth(path,...args);};
+  const mailFailure=client(handle,config,'mail-failure-ip'),delivery=await mailFailure.call('recover','POST',{email:'mail-failure@example.invalid',captchaToken:'test-token'});assert.equal(delivery.status,503);assert.equal(delivery.data.code,'EMAIL_DELIVERY_FAILED');assert.equal(mailFailure.jar.has('cc_challenge'),false);
   provider.auth=auth;await pg.db.query('update private.app_backup_runs set occurred_at=now()-interval \'3 days\'');
   const stale=client(handle,config,'stale-backup-ip');assert.equal((await stale.call('signup','POST',{email:'new-stale@example.invalid',password:'Password-2026',privacyAccepted:true,captchaToken:'test-token'})).data.code,'BACKUP_NOT_CURRENT');
   assert.equal((await stale.call('login','POST',{email:'a@example.invalid',password,captchaToken:'test-token'})).status,200);

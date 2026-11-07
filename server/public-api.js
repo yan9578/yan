@@ -248,7 +248,10 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
   }catch(error){
    let e=error;
    if(error instanceof ProviderError){
-    if(error.businessCode==='REVISION_CONFLICT')e=new HttpError(409,'Os dados mudaram em outra janela. Recarregue antes de salvar. Seu rascunho foi preservado.','REVISION_CONFLICT');
+    if(error.authFailure==='EMAIL_DELIVERY_FAILED')e=new HttpError(503,'Não foi possível enviar o código por e-mail. O responsável precisa conferir o serviço de envio e os registros de autenticação.','EMAIL_DELIVERY_FAILED');
+    else if(error.authFailure==='EMAIL_CONFIGURATION')e=new HttpError(503,'O serviço de e-mail ainda não está autorizado a enviar para esse endereço. Contate o responsável.','EMAIL_CONFIGURATION');
+    else if(error.authFailure==='AUTH_STORAGE_FAILED')e=new HttpError(503,'Não foi possível criar ou atualizar a conta no serviço de autenticação. Contate o responsável.','AUTH_STORAGE_FAILED');
+    else if(error.businessCode==='REVISION_CONFLICT')e=new HttpError(409,'Os dados mudaram em outra janela. Recarregue antes de salvar. Seu rascunho foi preservado.','REVISION_CONFLICT');
     else if(error.businessCode==='INVALID_STATE')e=new HttpError(409,'Esta solicitação já está em processamento. Em caso de interrupção, tente novamente após cinco minutos.','REQUEST_IN_PROGRESS');
     else if(['42P01','PGRST202','PGRST205','42883'].includes(error.code))e=new HttpError(503,'O serviço está temporariamente indisponível. Avise o responsável.','MIGRATION_REQUIRED');
     else if(error.status===429)e=new HttpError(429,'Limite temporário do serviço. Tente novamente mais tarde.','PROVIDER_LIMIT',60);
