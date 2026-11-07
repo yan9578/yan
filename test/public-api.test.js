@@ -65,6 +65,10 @@ test('falha de CAPTCHA ou do provedor não simula envio de código; backup venci
   provider.auth=async(path,...args)=>{if(path==='signup')throw new ProviderError(400,'captcha_failed');return auth(path,...args);};
   const captchaClient=client(handle,config,'captcha-ip');assert.equal((await captchaClient.call('signup','POST',{email:'captcha@example.invalid',password:'Password-2026',privacyAccepted:true})).data.code,'CAPTCHA_REQUIRED');
   const failed=await captchaClient.call('signup','POST',{email:'captcha@example.invalid',password:'Password-2026',privacyAccepted:true,captchaToken:'test-token'});assert.equal(failed.status,400);assert.equal(failed.data.code,'CAPTCHA_FAILED');assert.equal(captchaClient.jar.has('cc_challenge'),false);
+  for(const [reason,code]of [['invalid-input-secret','CAPTCHA_CONFIGURATION'],['timeout-or-duplicate','CAPTCHA_EXPIRED']]){
+   provider.auth=async(path,...args)=>{if(path==='signup')throw Object.assign(new ProviderError(400,'captcha_failed'),{captchaReason:reason});return auth(path,...args);};
+   const c=client(handle,config,reason);const r=await c.call('signup','POST',{email:reason+'@example.invalid',password:'Password-2026',privacyAccepted:true,captchaToken:'test-token'});assert.equal(r.status,400);assert.equal(r.data.code,code);assert.equal(c.jar.has('cc_challenge'),false);
+  }
   provider.auth=async(path,...args)=>{if(path==='recover')throw new ProviderError(400,'email_address_not_authorized');return auth(path,...args);};
   const unavailable=client(handle,config,'smtp-error-ip');assert.equal((await unavailable.call('recover','POST',{email:'unknown@example.invalid',captchaToken:'test-token'})).status,503);assert.equal(unavailable.jar.has('cc_challenge'),false);
   provider.auth=auth;await pg.db.query('update private.app_backup_runs set occurred_at=now()-interval \'3 days\'');

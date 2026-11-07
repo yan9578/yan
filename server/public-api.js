@@ -67,6 +67,8 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
  }
  function providerAuthError(err){
   if(!(err instanceof ProviderError))return;
+  if(err.code==='captcha_failed'&&['missing-input-secret','invalid-input-secret'].includes(err.captchaReason))throw new HttpError(400,'A configuração da verificação de segurança precisa ser corrigida pelo responsável.','CAPTCHA_CONFIGURATION');
+  if(err.code==='captcha_failed'&&err.captchaReason==='timeout-or-duplicate')throw new HttpError(400,'A verificação expirou ou já foi utilizada. Faça uma nova verificação antes de tentar novamente.','CAPTCHA_EXPIRED');
   if(err.code==='captcha_failed')throw new HttpError(400,'A verificação de segurança não foi aceita. Conclua uma nova verificação.','CAPTCHA_FAILED');
   if(err.code==='weak_password')throw new HttpError(400,'Escolha uma senha mais forte, com pelo menos 10 caracteres, letras e números.','WEAK_PASSWORD');
  }

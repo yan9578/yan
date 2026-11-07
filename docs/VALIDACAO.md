@@ -62,3 +62,5 @@ Não foi feito teste de carga nem auditoria de segurança independente. Os limit
 ## Regressão do CAPTCHA
 
 O teste de navegador também simula o SDK do Turnstile para conferir inicialização na primeira tela, bloqueio de envio sem token, encaminhamento do token, falha no carregamento, botão de nova tentativa e prazo finito de espera. O fluxo real da Cloudflare e as chaves/domínios configurados pelo proprietário ainda precisam de conferência no site publicado.
+
+A regressão do CAPTCHA também verifica troca de tela com SDK ainda carregando, rejeição de callback antigo, ausência de pedidos simultâneos, prazo local do token e uma única renovação ao avançar para a confirmação. Tokens enviados não são reutilizados e falhas exigem uma nova tentativa explícita. Erros conhecidos de segredo inválido e token vencido recebem mensagens distintas, sem expor conteúdo bruto do provedor.

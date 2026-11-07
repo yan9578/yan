@@ -1,5 +1,5 @@
 import {api} from './api.js';
-let config={publicAuth:false},current='login',onAuthenticated,cooldown=0,timer,widget=null,token='',widgetLoading=null,captchaTimer;
+let config={publicAuth:false},current='login',onAuthenticated,cooldown=0,timer,widget=null,token='',widgetLoading=null,captchaTimer,captchaGeneration=0,tokenAt=0,authBusy=false,captchaUsed=false;
 const $=s=>document.querySelector(s);
 export function showAuth(view='login'){
  current=view;$('#login-screen').hidden=false;$('#workspace').hidden=true;
@@ -10,7 +10,7 @@ export function showAuth(view='login'){
  const needsCaptcha=['login','signup','recover','verify'].includes(view);
  $('#captcha-container').hidden=!needsCaptcha||!config.captchaSiteKey;
  if(needsCaptcha&&config.captchaSiteKey)void loadCaptcha();
- else{clearTimeout(captchaTimer);if($('#captcha-status'))$('#captcha-status').hidden=true;if($('#captcha-retry'))$('#captcha-retry').hidden=true;}
+ else{captchaGeneration++;token='';clearTimeout(captchaTimer);if($('#captcha-status'))$('#captcha-status').hidden=true;if($('#captcha-retry'))$('#captcha-retry').hidden=true;}
 }
 function captchaStatus(message){
  let status=$('#captcha-status');if(!status){status=document.createElement('p');status.id='captcha-status';status.className='hint';status.setAttribute('role','status');$('#captcha-container').after(status);}
@@ -23,7 +23,7 @@ function captchaRetry(show){
 function captchaFailed(){clearTimeout(captchaTimer);token='';captchaStatus('Não foi possível concluir a verificação de segurança. Confira a conexão e tente novamente.');captchaRetry(true);}
 function captchaWaiting(){clearTimeout(captchaTimer);token='';captchaStatus('Aguardando a verificação de segurança…');captchaRetry(false);captchaTimer=setTimeout(captchaFailed,30000);}
 async function loadCaptcha(){
- captchaWaiting();
+ if(authBusy)return;const generation=++captchaGeneration;captchaWaiting();
  try{
   if(!window.turnstile?.render){
    if(!widgetLoading)widgetLoading=new Promise((resolve,reject)=>{
@@ -34,20 +34,36 @@ async function loadCaptcha(){
    });
    await widgetLoading;
   }
-  if(widget===null)widget=window.turnstile.render('#captcha-container',{
+  if(generation!==captchaGeneration||authBusy)return;
+  if(widget!==null){window.turnstile.remove(widget);widget=null;}
+  widget=window.turnstile.render('#captcha-container',{
    sitekey:config.captchaSiteKey,retry:'never','refresh-expired':'manual','refresh-timeout':'manual',
-   callback:v=>{clearTimeout(captchaTimer);token=v;captchaStatus('Verificação concluída.');captchaRetry(false);},
-   'expired-callback':()=>{clearTimeout(captchaTimer);token='';captchaStatus('A verificação expirou. Faça uma nova verificação.');captchaRetry(true);},
-   'error-callback':()=>{captchaFailed();return true;},'timeout-callback':captchaFailed,'unsupported-callback':captchaFailed
-  });else window.turnstile.reset(widget);
- }catch{widgetLoading=null;captchaFailed();}
+   callback:v=>{if(generation!==captchaGeneration||authBusy)return;clearTimeout(captchaTimer);token=v;tokenAt=performance.now();captchaStatus('Verificação concluída.');captchaRetry(false);},
+   'expired-callback':()=>{if(generation!==captchaGeneration||authBusy)return;clearTimeout(captchaTimer);token='';captchaStatus('A verificação expirou. Faça uma nova verificação.');captchaRetry(true);},
+   'error-callback':()=>{if(generation===captchaGeneration&&!authBusy)captchaFailed();return true;},'timeout-callback':()=>{if(generation===captchaGeneration&&!authBusy)captchaFailed();},'unsupported-callback':()=>{if(generation===captchaGeneration&&!authBusy)captchaFailed();}
+  });
+ }catch{if(generation===captchaGeneration){widgetLoading=null;captchaFailed();}}
 }
-function resetCaptcha(){token='';clearTimeout(captchaTimer);if(widget!==null&&!$('#login-screen').hidden){captchaWaiting();try{window.turnstile?.reset(widget);}catch{captchaFailed();}}}
-function requireCaptcha(){if(config.captchaSiteKey&&!token){if(widget===null)void loadCaptcha();throw Error('Conclua a verificação de segurança antes de continuar. Se ela não terminar, clique em tentar novamente.');}}
+function requireCaptcha(){
+ if(config.captchaSiteKey&&(!token||performance.now()-tokenAt>240000)){
+  if(token){token='';captchaStatus('A verificação expirou. Faça uma nova verificação.');captchaRetry(true);}
+  throw Error('Conclua a verificação de segurança antes de continuar. Se ela não terminar, clique em tentar novamente.');
+ }
+}
+function consumeCaptcha(){requireCaptcha();const value=token;token='';tokenAt=0;if(config.captchaSiteKey){captchaUsed=true;clearTimeout(captchaTimer);captchaStatus('Enviando sua solicitação…');captchaRetry(false);}return value;}
 function resendTimer(seconds){cooldown=Date.now()+seconds*1000;clearInterval(timer);const update=()=>{const left=Math.max(0,Math.ceil((cooldown-Date.now())/1000));$('#resend-code').disabled=left>0;$('#resend-code').textContent=left?'Reenviar em '+left+'s':'Reenviar código';if(!left)clearInterval(timer);};update();timer=setInterval(update,1000);}
 async function submit(form,action){
- const startedView=current,buttons=[...form.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);$('#auth-error').textContent='';$('#auth-message').textContent='';
- try{await action();}catch(error){$('#auth-error').textContent=error.message;if(error.retryAfter&&current==='verify')resendTimer(error.retryAfter);}finally{buttons.forEach(b=>b.disabled=false);if(current==='verify'&&cooldown>Date.now())$('#resend-code').disabled=true;if(current===startedView)resetCaptcha();}
+ if(authBusy)return;authBusy=true;captchaUsed=false;
+ const startedView=current,buttons=[...form.querySelectorAll('button')];buttons.forEach(b=>b.disabled=true);if($('#captcha-retry'))$('#captcha-retry').disabled=true;$('#auth-error').textContent='';$('#auth-message').textContent='';
+ try{await action();}catch(error){$('#auth-error').textContent=error.message;if(error.retryAfter&&current==='verify')resendTimer(error.retryAfter);}
+ finally{
+  authBusy=false;buttons.forEach(b=>b.disabled=false);if($('#captcha-retry'))$('#captcha-retry').disabled=false;
+  if(current==='verify'&&cooldown>Date.now())$('#resend-code').disabled=true;
+  if(!$('#login-screen').hidden){
+   if(current!==startedView&&['login','signup','recover','verify'].includes(current)&&config.captchaSiteKey)void loadCaptcha();
+   else if(captchaUsed){captchaStatus('Faça uma nova verificação para tentar novamente.');captchaRetry(true);}
+  }
+ }
 }
 export async function initAuth(callback){
  onAuthenticated=callback;let configFailed=false;
@@ -57,21 +73,19 @@ export async function initAuth(callback){
  document.querySelectorAll('[data-public-auth]').forEach(b=>{b.disabled=!config.publicAuth;});
  $('#auth-unavailable').hidden=config.publicAuth===true;
  $('#login-form').onsubmit=e=>{e.preventDefault();submit(e.target,async()=>{
-  requireCaptcha();const f=e.target;await api('login','POST',{username:f.elements.username.value,password:f.elements.password.value,remember:f.elements.remember.checked,captchaToken:token});f.elements.password.value='';await onAuthenticated();
+  requireCaptcha();const f=e.target;await api('login','POST',{username:f.elements.username.value,password:f.elements.password.value,remember:f.elements.remember.checked,captchaToken:consumeCaptcha()});f.elements.password.value='';await onAuthenticated();
  });};
  $('#signup-form').onsubmit=e=>{e.preventDefault();submit(e.target,async()=>{
   requireCaptcha();const f=e.target;if(f.elements.password.value!==f.elements.confirm.value)throw Error('As senhas precisam ser iguais.');
-  const result=await api('signup','POST',{email:f.elements.email.value,password:f.elements.password.value,privacyAccepted:f.elements.privacy.checked,remember:f.elements.remember.checked,captchaToken:token});
+  const result=await api('signup','POST',{email:f.elements.email.value,password:f.elements.password.value,privacyAccepted:f.elements.privacy.checked,remember:f.elements.remember.checked,captchaToken:consumeCaptcha()});
   f.elements.password.value='';f.elements.confirm.value='';showAuth('verify');$('#auth-message').textContent=result.message;resendTimer(result.resendAfter||60);
  });};
- $('#recover-form').onsubmit=e=>{e.preventDefault();submit(e.target,async()=>{requireCaptcha();const result=await api('recover','POST',{email:e.target.elements.email.value,captchaToken:token});showAuth('verify');$('#auth-message').textContent=result.message;resendTimer(result.resendAfter||60);});};
+ $('#recover-form').onsubmit=e=>{e.preventDefault();submit(e.target,async()=>{requireCaptcha();const result=await api('recover','POST',{email:e.target.elements.email.value,captchaToken:consumeCaptcha()});showAuth('verify');$('#auth-message').textContent=result.message;resendTimer(result.resendAfter||60);});};
  $('#verify-form').onsubmit=e=>{e.preventDefault();submit(e.target,async()=>{const result=await api('verify','POST',{code:e.target.elements.code.value.trim()});e.target.elements.code.value='';if(result.next==='reset')showAuth('reset');else await onAuthenticated();});};
  $('#reset-form').onsubmit=e=>{e.preventDefault();submit(e.target,async()=>{const f=e.target;if(f.elements.password.value!==f.elements.confirm.value)throw Error('As senhas precisam ser iguais.');const result=await api('reset-password','POST',{password:f.elements.password.value});f.reset();showAuth('login');$('#auth-message').textContent=result.message;});};
  $('#resend-code').onclick=()=>submit($('#verify-form'),async()=>{
   if(cooldown>Date.now())return;
-  // Um CAPTCHA novo é solicitado antes de reenviar quando o provedor o exige.
-  if(config.captchaSiteKey&&!token){$('#captcha-container').hidden=false;await loadCaptcha();throw Error('Conclua a verificação de segurança e clique em reenviar novamente.');}
-  const result=await api('resend','POST',{captchaToken:token});resetCaptcha();$('#auth-message').textContent=result.message;resendTimer(result.resendAfter||60);
+  const result=await api('resend','POST',{captchaToken:consumeCaptcha()});$('#auth-message').textContent=result.message;resendTimer(result.resendAfter||60);
  });
  showAuth(config.authStage?.view||'login');
  if(configFailed)$('#auth-error').textContent='Não foi possível conectar ao servidor. Tente recarregar.';
