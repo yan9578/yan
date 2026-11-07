@@ -3,6 +3,7 @@ let config={publicAuth:false},current='login',onAuthenticated,cooldown=0,timer,w
 const $=s=>document.querySelector(s);
 export function showAuth(view='login'){
  current=view;$('#login-screen').hidden=false;$('#workspace').hidden=true;
+ const consent=$('#analytics-banner');if(consent)$('.auth-card h2').before(consent);
  document.querySelectorAll('[data-auth-panel]').forEach(p=>p.hidden=p.dataset.authPanel!==view);
  $('#auth-message').textContent='';$('#auth-error').textContent='';
  const titles={login:['Seu caixa começa aqui.','Entre para acompanhar seu negócio.'],signup:['Seu negócio merece clareza.','Crie sua conta e confirme seu e-mail.'],recover:['Vamos recuperar seu acesso.','Você receberá um código temporário por e-mail.'],verify:['Confira seu e-mail.','Digite o código recebido. Ele é temporário e só pode ser usado uma vez.'],reset:['Escolha uma nova senha.','Use uma senha exclusiva para esta conta.']};
