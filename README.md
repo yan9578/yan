@@ -1,8 +1,10 @@
 # Caixa Claro
 
-Fluxo de caixa como tela principal e DRE em uma área própria, com a mesma conta. Os lançamentos dos dois módulos continuam independentes. Esta versão acrescenta cadastro por e-mail, confirmação e recuperação por código, sessões protegidas, dados por usuário e administração privada.
+Fluxo de caixa como tela principal e DRE em uma área própria, com a mesma conta. Os lançamentos dos dois módulos continuam independentes. Esta versão oferece acesso com Google, sessões protegidas, dados por usuário e administração privada. Os fluxos de confirmação e recuperação por código permanecem opcionais.
 
-O projeto contém a implementação e testes locais. **Esta alteração ainda não foi publicada no Netlify nem aplicada ao Supabase do proprietário.** Não houve envio de e-mail real: o proprietário informou que ainda não tem SMTP. Cadastro público permanece desativado na configuração de exemplo.
+O acesso principal do piloto agora é **Continuar com Google**, para entrar ou criar conta sem SMTP. O login por senha continua disponível para contas existentes. Novos pedidos de códigos por e-mail ficam desativados por padrão. A configuração externa e os testes do login Google estão em [docs/GOOGLE.md](docs/GOOGLE.md); o botão depende de um cliente OAuth configurado no Google Cloud e no Supabase.
+
+O site existente já usa Netlify e Supabase. A alteração atual de acesso Google está implementada e testada localmente, mas sua validação no serviço real depende da configuração do cliente OAuth pelo proprietário. O SMTP apresentou falhas de autenticação no piloto; este acesso Google funciona sem enviar códigos pelo aplicativo. Os testes externos Google/Supabase Auth são simulados, enquanto APIs, navegador e PostgreSQL/RLS são executados.
 
 ## Publicar a versão atual
 

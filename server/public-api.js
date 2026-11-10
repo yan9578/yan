@@ -1,13 +1,15 @@
 import {Supabase,ProviderError} from './supabase.js';
 import {opaque,sha256,secretKey,seal,unseal,cookie,cookies} from './security.js';
 import {email,password,validateRecords,validateDre,revision} from './validation.js';
-import {createHmac} from 'node:crypto';
+import {createHmac,createHash} from 'node:crypto';
 
 class HttpError extends Error{constructor(status,message,code='REQUEST_FAILED',retryAfter){super(message);this.status=status;this.code=code;this.retryAfter=retryAfter;}}
 const invalid=()=>new HttpError(401,'Usuário, senha ou código inválidos.','AUTH_FAILED');
 const noSession=()=>new HttpError(401,'Sua sessão terminou. Entre novamente.','SESSION_REQUIRED');
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[1-5][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/i;
 const FEATURES=new Set(['cash','dre','account','admin']);
+const GOOGLE_CALLBACK='/api/oauth/google/callback';
+const verifiedGoogle=user=>Array.isArray(user?.identities)&&user.identities.some(i=>i.provider==='google'&&i.identity_data?.email_verified===true&&String(i.identity_data.email||'').toLowerCase()===String(user.email||'').toLowerCase()&&!!i.identity_data.sub&&(!i.user_id||i.user_id===user.id));
 const genericEmail='Se o e-mail puder receber essa solicitação, enviaremos um código temporário. Confira também a pasta de spam.';
 const tokenData=data=>({access:data.access_token,refresh:data.refresh_token,expiresAt:Date.now()+(data.expires_in||3600)*1000});
 
@@ -59,7 +61,7 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
   return body.captchaToken?{gotrue_meta_security:{captcha_token:String(body.captchaToken).slice(0,4096)}}:{};
  }
  async function publicAuth(){
-  if(!config.publicAuth||!config.emailReady)throw new HttpError(503,'Cadastro e recuperação estão temporariamente indisponíveis. Contate o responsável.','EMAIL_NOT_CONFIGURED');
+  if(config.emailCodesEnabled===false||!config.publicAuth||!config.emailReady)throw new HttpError(503,'O cadastro e a recuperação por código de e-mail estão desativados. Use Continuar com Google.','EMAIL_NOT_CONFIGURED');
  }
  async function backupAdmission(){
   const health=await provider.rpc('app_backup_health',{}, {service:true});
@@ -97,7 +99,7 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
   const headers=new Headers({'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff','Referrer-Policy':'same-origin','Permissions-Policy':'camera=(), microphone=(), geolocation=()'});
   if(config.production)headers.set('Strict-Transport-Security','max-age=31536000');
   const requestId=opaque().slice(0,16);headers.set('X-Request-Id',requestId);
-  const setCookie=(name,value,maxAge)=>headers.append('Set-Cookie',cookie(name,value,{secure:config.production,maxAge}));
+  const setCookie=(name,value,maxAge,options={})=>headers.append('Set-Cookie',cookie(name,value,{...options,secure:config.production,maxAge}));
   const clear=name=>setCookie(name,'',0);
   const respond=(status,data)=>new Response(JSON.stringify(data),{status,headers});
   let identity=null,feature=null;
@@ -105,8 +107,8 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
    if(!['GET','POST','PUT'].includes(method))throw new HttpError(405,'Método não permitido.');
    // O diagnóstico público pode ser aberto por um link externo. APIs da conta
    // e todas as alterações continuam exigindo as proteções de origem.
-   const publicConfig=method==='GET'&&path==='/api/config';
-   if(!publicConfig&&request.headers.get('sec-fetch-site')==='cross-site')throw new HttpError(403,'Origem não autorizada.','BAD_ORIGIN');
+   const publicConfig=method==='GET'&&path==='/api/config',googleCallback=method==='GET'&&path===GOOGLE_CALLBACK;
+   if(!publicConfig&&!googleCallback&&request.headers.get('sec-fetch-site')==='cross-site')throw new HttpError(403,'Origem não autorizada.','BAD_ORIGIN');
    if(method!=='GET'&&(request.headers.get('origin')!==config.origin||!request.headers.get('content-type')?.startsWith('application/json')))throw new HttpError(403,'Origem não autorizada.','BAD_ORIGIN');
    let body={};if(method!=='GET'){
     const raw=await request.text();if(Buffer.byteLength(raw)>2_000_000)throw new HttpError(413,'Solicitação muito grande.');
@@ -114,11 +116,57 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
     if(!body||typeof body!=='object'||Array.isArray(body))throw new HttpError(400,'Dados inválidos.');
    }
    const ip=context.ip||'unknown';
+   if(path==='/api/oauth/google/start'&&method==='POST'){
+    if(config.googleAuth!==true)throw new HttpError(503,'O login com Google está indisponível.','GOOGLE_NOT_CONFIGURED');
+    if(body.privacyAccepted!==true)throw new HttpError(400,'Leia a política de privacidade e marque a confirmação para continuar.','PRIVACY_REQUIRED');
+    if(!config.privacyController||!/^\S+@\S+\.\S+$/.test(config.privacyContact||''))throw new HttpError(503,'O responsável precisa concluir a configuração de privacidade.','GOOGLE_NOT_CONFIGURED');
+    await rate('google-start-ip',ip,20,900);
+    const settings=await provider.auth('settings',undefined,undefined,'GET');
+    if(settings?.external?.google!==true)throw new HttpError(503,'O responsável precisa configurar o provedor Google no Supabase para ativar este acesso.','GOOGLE_NOT_CONFIGURED');
+    const verifier=opaque(),flow={id:opaque(),verifier,until:clock()+600000,remember:body.remember===true};
+    const target=new URL(config.url+'/auth/v1/authorize');target.search=new URLSearchParams({provider:'google',redirect_to:config.origin+GOOGLE_CALLBACK,code_challenge:createHash('sha256').update(verifier).digest('base64url'),code_challenge_method:'s256',scopes:'openid',prompt:'select_account'}).toString();
+    setCookie('cc_google',seal(flow,config.secret,'google-oauth'),600,{path:GOOGLE_CALLBACK,sameSite:'Lax'});clear('cc_challenge');clear('cc_recovery');
+    return respond(200,{url:target.href});
+   }
+   if(googleCallback){
+    // Lax é restrito ao cookie temporário de retorno. A sessão continua Strict.
+    setCookie('cc_google','',0,{path:GOOGLE_CALLBACK,sameSite:'Lax'});headers.set('Referrer-Policy','no-referrer');
+    const redirect=notice=>{headers.set('Location',config.origin+'/?'+new URLSearchParams({auth:notice})+'#');return new Response(null,{status:303,headers});};
+    let result,established=false;
+    try{
+     if(config.googleAuth!==true)return redirect('google_unavailable');
+     let flow;try{flow=unseal(cookies(request.headers.get('cookie')).cc_google||'',config.secret,'google-oauth');}catch{return redirect('google_expired');}
+     if(!Number.isFinite(flow.until)||flow.until<=clock()||!(/^[a-f0-9]{64}$/).test(flow.id||'')||!(/^[a-f0-9]{64}$/).test(flow.verifier||''))return redirect('google_expired');
+     const once=await provider.rpc('app_limit',{p_bucket:'google-oauth-once',p_key_hash:hmac(flow.id,'oauth-once'),p_max:1,p_seconds:600},{service:true});
+     if(!once?.allowed)return redirect('google_expired');
+     await rate('google-callback-ip',ip,30,900);
+     if(url.searchParams.has('error'))return redirect(url.searchParams.get('error_code')==='signup_disabled'?'google_registration_paused':url.searchParams.get('error')==='access_denied'?'google_cancelled':'google_failed');
+     const code=url.searchParams.get('code');if(!/^[A-Za-z0-9_-]{12,2048}$/.test(code||''))return redirect('google_failed');
+     result=await provider.auth('token?grant_type=pkce',{auth_code:code,code_verifier:flow.verifier});
+     if(!result?.access_token||!result?.refresh_token)return redirect('google_failed');
+     const user=await provider.auth('user',undefined,result.access_token,'GET');
+     if(!verifiedGoogle(user)||(!user.email_confirmed_at&&!user.confirmed_at)||!UUID.test(user.id||''))return redirect('google_unverified');
+     // O UUID validado pelo Supabase é a única identidade usada para os dados.
+     // Nenhuma conta é mesclada por um e-mail informado pelo navegador.
+     const [details,cash,dre,admin]=await Promise.all([provider.rpc('app_account_details',{}, {token:result.access_token}),provider.request('/rest/v1/cashbooks?select=user_id&limit=1',{token:result.access_token}),provider.request('/rest/v1/dre_books?select=user_id&limit=1',{token:result.access_token}),provider.rpc('app_is_admin',{}, {token:result.access_token})]);
+     const known=admin===true||details?.policyAcknowledgements?.length>0||(Array.isArray(cash)&&cash.length===1)||(Array.isArray(dre)&&dre.length===1);
+     if(!known){if(!config.backupReady)return redirect('google_registration_paused');await backupAdmission();}
+     await createSession({...result,user},flow.remember,setCookie,true);clear('cc_challenge');clear('cc_recovery');
+     established=true;
+     return redirect('google_success');
+    }catch(error){
+     logger({requestId,event:'GOOGLE_AUTH_FAILED',code:error instanceof HttpError?error.code:error instanceof ProviderError?'PROVIDER_ERROR':'REQUEST_FAILED'});
+     return redirect(error?.code==='BACKUP_NOT_CURRENT'?'google_registration_paused':'google_failed');
+    }finally{
+     if(result?.access_token&&!established){try{await provider.auth('logout?scope=local',{},result.access_token);}catch{}}
+    }
+   }
    if(path==='/api/config'&&method==='GET'){
     let authStage=null;
-    try{const c=unseal(cookies(request.headers.get('cookie')).cc_challenge||'',config.secret,'challenge');if(c.until>clock())authStage={view:'verify',type:c.type,until:c.until};}catch{}
-    if(cookies(request.headers.get('cookie')).cc_recovery)authStage={view:'reset'};
-    return respond(200,{publicAuth:config.publicAuth&&config.emailReady,captchaSiteKey:config.captchaSiteKey,privacy:{controller:config.privacyController,contact:config.privacyContact},serverMode:true,authStage});
+    if(config.emailCodesEnabled===false){clear('cc_challenge');clear('cc_recovery');}
+    else{try{const c=unseal(cookies(request.headers.get('cookie')).cc_challenge||'',config.secret,'challenge');if(c.until>clock())authStage={view:'verify',type:c.type,until:c.until};}catch{}
+     if(cookies(request.headers.get('cookie')).cc_recovery)authStage={view:'reset'};}
+    return respond(200,{publicAuth:config.emailCodesEnabled!==false&&config.publicAuth&&config.emailReady,googleAuth:config.googleAuth===true,emailCodesEnabled:config.emailCodesEnabled!==false,captchaSiteKey:config.captchaSiteKey,privacy:{controller:config.privacyController,contact:config.privacyContact},serverMode:true,authStage});
    }
    if(path==='/api/login'&&method==='POST'){
     await rate('login-ip',ip,20,900);
@@ -227,7 +275,7 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
     if(path==='/api/admin/metrics'&&method==='GET'){
      const days=Number(url.searchParams.get('days')||30);if(![7,30,90].includes(days))throw new HttpError(400,'Período inválido.');
      const metrics=await provider.rpc('app_admin_metrics',{p_days:days},{token});
-     return respond(200,{...metrics,databaseLimitMb:config.databaseLimitMb,hosting:await hosting(),hostingDashboard:config.netlifyDashboard,configuration:{publicAuth:config.publicAuth,emailReady:config.emailReady,backupReady:config.backupReady,captchaConfigured:!!config.captchaSiteKey},timeZone:'America/Sao_Paulo',retentionDays:90});
+     return respond(200,{...metrics,databaseLimitMb:config.databaseLimitMb,hosting:await hosting(),hostingDashboard:config.netlifyDashboard,configuration:{publicAuth:config.emailCodesEnabled!==false&&config.publicAuth,googleAuth:config.googleAuth===true,emailCodesEnabled:config.emailCodesEnabled!==false,emailReady:config.emailReady,backupReady:config.backupReady,captchaConfigured:!!config.captchaSiteKey},timeZone:'America/Sao_Paulo',retentionDays:90});
     }
     if(path==='/api/admin/requests'&&method==='GET')return respond(200,await provider.rpc('app_admin_requests',{}, {token}));
     if(path==='/api/admin/deletion'&&method==='POST'){

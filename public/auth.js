@@ -8,6 +8,7 @@ export function showAuth(view='login'){
  $('#auth-message').textContent='';$('#auth-error').textContent='';
  const titles={login:['Seu caixa começa aqui.','Entre para acompanhar seu negócio.'],signup:['Seu negócio merece clareza.','Crie sua conta e confirme seu e-mail.'],recover:['Vamos recuperar seu acesso.','Você receberá um código temporário por e-mail.'],verify:['Confira seu e-mail.','Digite o código recebido. Ele é temporário e só pode ser usado uma vez.'],reset:['Escolha uma nova senha.','Use uma senha exclusiva para esta conta.']};
  const title=titles[view]||titles.login;$('#auth-title').textContent=title[0];$('#auth-subtitle').textContent=title[1];
+ const googlePanel=$('#google-panel');if(googlePanel)googlePanel.hidden=!config.googleAuth||!['login','signup'].includes(view);
  const needsCaptcha=['login','signup','recover'].includes(view);
  const captchaBlock=$('#captcha-block'),form=document.querySelector('[data-auth-panel="'+view+'"]');
  if(captchaBlock&&form){const anchor=view==='verify'?$('#resend-code'):form.querySelector('button[type="submit"]');if(anchor)anchor.before(captchaBlock);captchaBlock.hidden=!needsCaptcha||!config.captchaSiteKey;}
@@ -78,11 +79,11 @@ async function submit(form,action){
  if(authBusy)return;authBusy=true;captchaAttempted=false;
  const startedView=current,controls=[...new Set([...form.elements,...document.querySelectorAll('[data-auth-link]')])].map(node=>({node,disabled:node.disabled}));
  controls.forEach(({node})=>node.disabled=true);if($('#captcha-retry'))$('#captcha-retry').disabled=true;
- const primary=form.querySelector('button[type="submit"]'),label=primary?.textContent;if(primary)primary.textContent='Aguarde…';
+ const primary=form.querySelector('button[type="submit"]'),label=primary?[...primary.childNodes]:[];if(primary)primary.textContent='Aguarde…';
  $('#auth-error').textContent='';$('#auth-message').textContent='';
  try{await action();}catch(error){$('#auth-error').textContent=error.message+(error.supportCode?' Código de suporte: '+error.supportCode+'.':'')+(error.status>=500&&error.code?' Código de suporte: '+error.code+'.':'');if(error.retryAfter&&current==='verify')resendTimer(error.retryAfter);}
  finally{
-  authBusy=false;controls.forEach(({node,disabled})=>node.disabled=disabled);if(primary)primary.textContent=label;
+  authBusy=false;controls.forEach(({node,disabled})=>node.disabled=disabled);if(primary)primary.replaceChildren(...label);
   if(current==='verify'&&cooldown>Date.now())$('#resend-code').disabled=true;
   if(!$('#login-screen').hidden&&current===startedView&&captchaAttempted){clearCaptcha();captchaStatus('Para tentar novamente, envie o formulário. A verificação será iniciada automaticamente.');captchaRetry(true);}
  }
@@ -92,8 +93,14 @@ export async function initAuth(callback){
  try{config=await api('config');}catch{configFailed=true;}
  document.querySelectorAll('[data-auth-link]').forEach(b=>b.onclick=()=>showAuth(b.dataset.authLink));
  document.querySelectorAll('[data-password-toggle]').forEach(b=>b.onclick=()=>{const input=document.getElementById(b.dataset.passwordToggle);const visible=input.type==='password';input.type=visible?'text':'password';b.textContent=visible?'Ocultar':'Mostrar';b.setAttribute('aria-pressed',String(visible));});
- document.querySelectorAll('[data-public-auth]').forEach(b=>{b.disabled=!config.publicAuth;});
- $('#auth-unavailable').hidden=config.publicAuth===true;
+ document.querySelectorAll('[data-public-auth]').forEach(b=>{b.disabled=!config.publicAuth;b.hidden=config.emailCodesEnabled===false;});
+ document.querySelectorAll('.auth-switch').forEach(p=>p.hidden=config.emailCodesEnabled===false);
+ $('#auth-unavailable').hidden=config.publicAuth===true||config.googleAuth===true;
+ $('#google-form').onsubmit=e=>{e.preventDefault();submit(e.target,async()=>{
+  const f=e.target,result=await api('oauth/google/start','POST',{privacyAccepted:f.elements.privacy.checked,remember:f.elements.remember.checked});
+  const target=new URL(result.url);if(target.protocol!=='https:'||!target.hostname.endsWith('.supabase.co')||target.pathname!=='/auth/v1/authorize'||target.searchParams.get('provider')!=='google')throw Error('Não foi possível iniciar o login com Google.');
+  window.location.assign(target.href);
+ });};
  $('#login-form').onsubmit=e=>{e.preventDefault();submit(e.target,async()=>{
   const f=e.target,data={username:f.elements.username.value,password:f.elements.password.value,remember:f.elements.remember.checked};data.captchaToken=await getCaptchaToken();await api('login','POST',data);f.elements.password.value='';await onAuthenticated();
  });};
@@ -111,6 +118,10 @@ export async function initAuth(callback){
  });
  showAuth(config.authStage?.view||'login');
  if(configFailed)$('#auth-error').textContent='Não foi possível conectar ao servidor. Tente recarregar.';
+ const notices={google_success:'',google_cancelled:'Você cancelou o acesso pelo Google. Pode tentar novamente.',google_expired:'O prazo para entrar com Google terminou ou o link já foi usado. Clique em Continuar com Google novamente.',google_unavailable:'O login com Google precisa ser configurado pelo responsável.',google_failed:'Não foi possível concluir o acesso pelo Google. Tente novamente ou contate o suporte.',google_unverified:'O Google precisa confirmar o e-mail desta conta antes de continuar.',google_registration_paused:'Novas contas estão temporariamente indisponíveis. O responsável precisa conferir a configuração e o backup.'};
+ const location=new URL(window.location.href),notice=location.searchParams.get('auth');
+ if(notice&&Object.hasOwn(notices,notice)){if(notices[notice])$('#auth-error').textContent=notices[notice];location.searchParams.delete('auth');history.replaceState(null,'',location.pathname+location.search+location.hash);}
+
  if(config.authStage){if(config.authStage.view==='verify')resendTimer(Math.min(60,Math.max(0,Math.ceil((config.authStage.until-Date.now())/1000))));}
  return config;
 }

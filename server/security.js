@@ -13,7 +13,7 @@ export function unseal(value,secret,purpose='tokens'){
  const decipher=createDecipheriv('aes-256-gcm',secretKey(secret,purpose),buf.subarray(0,12));decipher.setAAD(Buffer.from(purpose));decipher.setAuthTag(buf.subarray(12,28));
  return JSON.parse(Buffer.concat([decipher.update(buf.subarray(28)),decipher.final()]).toString('utf8'));
 }
-export function cookie(name,value,{secure=true,maxAge,path='/api'}={}){return `${name}=${value}; Path=${path}; HttpOnly; SameSite=Strict${secure?'; Secure':''}${maxAge===undefined?'':`; Max-Age=${maxAge}`}`;}
+export function cookie(name,value,{secure=true,maxAge,path='/api',sameSite='Strict'}={}){if(!['Strict','Lax'].includes(sameSite))throw Error('Invalid cookie policy');return `${name}=${value}; Path=${path}; HttpOnly; SameSite=${sameSite}${secure?'; Secure':''}${maxAge===undefined?'':`; Max-Age=${maxAge}`}`;}
 export function cookies(header=''){return Object.fromEntries(String(header||'').split(';').map(v=>v.trim().split(/=(.*)/s)).filter(v=>v[0]));}
 export function safeEqual(a,b){const x=Buffer.from(String(a)),y=Buffer.from(String(b));return x.length===y.length&&timingSafeEqual(x,y);}
 export function redactError(error){return {code:error?.code==='ECONNREFUSED'?'UPSTREAM_UNAVAILABLE':'REQUEST_FAILED'};}

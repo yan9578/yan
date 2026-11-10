@@ -1,3 +1,11 @@
+CAIXA CLARO — ACESSO COM GOOGLE
+
+O acesso principal do piloto é Continuar com Google, sem códigos por SMTP.
+É necessário criar um cliente OAuth Web no Google Cloud e habilitar o provedor
+no Supabase. Siga docs/GOOGLE.md; não envie Client Secret no chat ou no Git.
+As contas existentes ainda podem entrar com senha. Não apague ou recrie contas
+para associar o Google, pois os dados pertencem ao UUID do usuário.
+
 CAIXA CLARO — VERSÃO PÚBLICA EM PREPARAÇÃO
 
 Fluxo de caixa é a tela principal; DRE fica no menu, com a mesma conta.

@@ -3,9 +3,19 @@
   <div class="auth-story"><a class="brand" href="/">▥ <span>caixa<span class="light">claro</span></span></a><span class="eyebrow">CLAREZA PARA CADA DECISÃO</span><h1>Seu dinheiro.<br>Seu resultado.<br>Seu próximo passo.</h1><p>Fluxo de caixa e DRE em um só lugar, para você cuidar do negócio com mais clareza.</p><ul><li>Registre o movimento do caixa</li><li>Entenda o resultado da empresa</li><li>Acesse sua conta em outros aparelhos</li></ul><small>Cada conta tem seu próprio espaço.</small></div>
   <article class="auth-card"><a class="brand auth-mobile-brand" href="/">▥ caixa<span class="light">claro</span></a><h2 id="auth-title">Seu caixa começa aqui.</h2><p id="auth-subtitle">Entre para acompanhar seu negócio.</p>
    <p id="auth-message" class="auth-message" role="status"></p><p id="auth-error" class="auth-error" role="alert"></p>
+   <section id="google-panel" hidden>
+    <p class="google-intro">Entre ou crie sua conta com Google. Use o mesmo e-mail da sua conta para acessar seus dados.</p>
+    <form id="google-form">
+     <label class="check-label"><input id="google-privacy" name="privacy" type="checkbox" required> Li a <a href="/privacidade.html" target="_blank" rel="noopener">política de privacidade</a>.</label>
+     <label class="check-label"><input name="remember" type="checkbox"> Manter conectado neste aparelho</label>
+     <button id="google-login" class="google-button full" type="submit"><span aria-hidden="true">G</span> Continuar com Google</button>
+    </form>
+    <p class="hint">O Google confirma sua identidade. Você não precisa receber um código do Caixa Claro por e-mail. <a href="https://accounts.google.com/signin/recovery" target="_blank" rel="noopener">Recuperar minha Conta Google</a>.</p>
+    <p class="auth-divider">Já possui uma senha do Caixa Claro? Entre abaixo.</p>
+   </section>
    <form id="login-form" data-auth-panel="login">
     <label>E-mail ou usuário<input name="username" autocomplete="username" required maxlength="254" placeholder="Seu e-mail"></label>
-    <label>Senha<span class="password-field"><input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="256"><button type="button" data-password-toggle="login-password" aria-pressed="false">Mostrar</button></span></label>
+    <label>Senha do Caixa Claro<span class="password-field"><input id="login-password" name="password" type="password" autocomplete="current-password" required maxlength="256"><button type="button" data-password-toggle="login-password" aria-pressed="false">Mostrar</button></span></label>
     <div class="auth-options"><label class="check-label"><input name="remember" type="checkbox"> Manter conectado</label><button type="button" class="text-button" data-auth-link="recover" data-public-auth>Esqueci minha senha</button></div>
     <button class="primary full" type="submit">Entrar</button><p class="auth-switch">Primeira vez aqui? <button type="button" class="text-button" data-auth-link="signup" data-public-auth>Criar conta</button></p>
    </form>

@@ -1,32 +1,26 @@
-# Entrega e configuração pendente
+# Entrega atual: acesso com Google
 
-## Implementado no projeto
+O piloto passa a oferecer **Continuar com Google** para entrar ou criar conta sem SMTP. A senha do Google fica com o Google, e a recuperação desse acesso usa a Conta Google. O login por senha do aplicativo permanece para contas existentes. Novos pedidos de código de e-mail ficam desativados por padrão.
 
-| Área | Resultado |
-| --- | --- |
-| Contas | Cadastro com confirmação, recuperação por código, login, logout e manter conectado |
-| Sessões | Cookies HttpOnly, tokens criptografados no servidor, revogação e limites persistentes |
-| Dados | Supabase/PostgreSQL com RLS por conta, revisões, validação no servidor e no banco |
-| Caixa e DRE | Caixa como principal, DRE em área própria, dados independentes na mesma conta |
-| Conexão | Estado de salvamento, rascunho pendente criptografado e tentativa de recuperação |
-| Administração | Permissão no banco, indicadores agregados, filtros e gráficos de evolução |
-| Privacidade | Política configurável, estatísticas opcionais, exportação e solicitação de exclusão com análise de retenção |
-| Backup | Arquivo financeiro criptografado, workflow externo preparado, restauração verificada e modo de manutenção |
-| Publicação | Funções Netlify, build sem segredos, variáveis de exemplo e instruções para atualizar o mesmo projeto |
+## Implementado
 
-## Testado localmente
+- Autorização Google pelo Supabase com PKCE S256, segredo de verificação em cookie criptografado HttpOnly e autorização de uso único no banco.
+- Cookie temporário Lax somente no retorno do provedor; sessão do aplicativo continua Strict, HttpOnly e Secure em produção.
+- Identidade verificada no servidor. Dados usam exclusivamente o UUID validado pelo Supabase; o aplicativo não mescla contas por e-mail recebido do navegador.
+- Confirmação da política, manter conectado, cancelamento e mensagens para prazo expirado, provedor ausente e cadastro temporariamente indisponível.
+- Fluxo de caixa, DRE, administração, isolamento, rascunhos e rotinas de backup preservados.
+- Nenhuma migração SQL nova é necessária para esse fluxo, desde que as migrações anteriores já estejam aplicadas.
 
-Testes automatizados de API, PostgreSQL/RLS, isolamento de contas, códigos e sessões, indicadores, dados financeiros, backup/restauração e navegador desktop/móvel. Os testes de autenticação/e-mail usam um provedor simulado; as APIs do aplicativo e SQL são executados. Detalhes em [VALIDACAO.md](VALIDACAO.md).
+## Validação realizada
 
-Resultado da verificação em 6 de novembro de 2026: `npm test` com **24 testes aprovados**, `npm run build` concluído e `npm run test:e2e` aprovado com Chromium em desktop e celular. O ensaio de recuperação comparou valores de caixa e DRE no banco após restaurar um arquivo criptografado.
+`npm test`: **31 testes aprovados**. Build concluído. Testes de navegador cobrem o retorno entre origens, preservação de UUID/dados/admin de conta existente, conta nova isolada, outro aparelho, cancelamento e retorno sem cookie. Os testes de códigos/CAPTCHA existentes também passaram.
 
-## Depende das contas e serviços externos
+Google/Supabase Auth são simulados nos testes. O PostgreSQL/RLS e as APIs do aplicativo são executados. Não houve login real no Google Cloud do proprietário nem instalação de credenciais OAuth por este executor.
 
-1. SMTP com remetente verificado e templates de código no Supabase. O proprietário informou que ainda não tem SMTP.
-2. Migrações no Supabase real, configuração nativa de segurança e permissão administrativa ao proprietário confirmado.
-3. Turnstile, segredos nas funções Netlify e deploy do projeto completo.
-4. Nome e contato reais do responsável, revisão da política e definições operacionais de retenção.
-5. Workflow de backup ativado, chave guardada separadamente e ensaio de recuperação externo. A cópia financeira não substitui backup completo de Auth/PostgreSQL.
-6. Validação real com dois e-mails e dois aparelhos antes de convidar o público.
+## Configuração externa necessária
 
-**O código foi alterado; o site já publicado pelo proprietário ainda não recebeu esta versão.** Não foram alteradas contas, senhas ou informações no Supabase real. Cadastro público fica bloqueado até configurar os pré-requisitos. O próximo passo é seguir [PUBLICACAO.md](PUBLICACAO.md), começando pelo e-mail e pela preservação dos dados existentes.
+Siga [GOOGLE.md](GOOGLE.md): criar cliente OAuth Web no Google Cloud, adicionar os usuários de teste, habilitar Google no Supabase e configurar os dois endereços de retorno corretos. Client Secret fica somente no Supabase; não vai no chat, GitHub ou frontend.
+
+Antes de convidar usuários, faça um login real com a conta antiga e confira o mesmo UUID, os valores de caixa/DRE e o acesso em outro aparelho. Depois teste uma conta nova e confirme o isolamento. A associação automática de identidades de mesmo e-mail verificado depende do comportamento do Supabase real; não apague contas para ligá-las ao Google.
+
+A cópia financeira criptografada continua necessária e não substitui backup completo de Supabase Auth/PostgreSQL. Configurações de serviços e limites dos planos precisam ser acompanhados pelo proprietário.

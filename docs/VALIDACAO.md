@@ -55,7 +55,7 @@ Depois de concluir PUBLICACAO.md, use dados fictícios e endereços de e-mail qu
 
 ## Limites e pendências reais
 
-Neste ambiente não há credenciais administrativas vinculadas ao projeto, e o acesso de rede ao domínio Supabase do proprietário é bloqueado. Portanto, não foi possível aplicar migrações, verificar RLS remota, criar administradores remotos ou validar e-mails reais. Não há SMTP configurado informado pelo proprietário. Os workflows foram preparados, mas não executados na conta GitHub. Não foi realizado deploy no Netlify.
+Neste ambiente não há credenciais administrativas vinculadas ao projeto, e o acesso de rede ao domínio Supabase do proprietário é bloqueado. Portanto, não foi possível aplicar migrações, verificar RLS remota, criar administradores remotos ou validar e-mails reais. O proprietário configurou Netlify, banco e backup durante o piloto e apresentou erros de autenticação SMTP. O novo acesso Google ainda precisa de cliente OAuth configurado e validação no serviço real.
 
 Não foi feito teste de carga nem auditoria de segurança independente. Os limites atuais de documentos são 5.000 registros de caixa e 50.000 lançamentos de DRE por conta, além de limites de tamanho e backup. Valide desempenho e custo antes de aumentar esses limites ou abrir o serviço em grande escala.
 
@@ -66,3 +66,7 @@ Foi reproduzido o caso em que uma interação humana concluída depois de 45 seg
 O teste de navegador simula um SDK com `render`, `execute` e `remove`, uma pessoa que leva 45 segundos, falha de script, erro do widget, callback antigo, nova tentativa, dois cadastros consecutivos e recuperação após senha incorreta. O adaptador Auth do teste recusa tokens desconhecidos ou reutilizados. Também verifica que uma falha ao enviar o e-mail não apresenta sucesso nem inicia outra verificação automaticamente. O PostgreSQL e as APIs do aplicativo são executados; Cloudflare e Auth/e-mail são simulados.
 
 O SDK real da Cloudflare, as chaves instaladas no Supabase e o envio real pelo SMTP continuam exigindo conferência no site publicado. A rede deste executor bloqueia os domínios do site e da Cloudflare. Erros conhecidos de envio de e-mail e gravação no Auth agora recebem códigos de suporte separados, sem copiar mensagens privadas do provedor para a resposta.
+
+## Acesso Google
+
+O acesso principal agora usa OAuth PKCE, conforme [GOOGLE.md](GOOGLE.md). Foram aprovados 31 testes automatizados e os testes de navegador de acesso Google, códigos opcionais e CAPTCHA. A cobertura inclui retorno entre origens com cookie Lax, sessão Strict, autorização de uso único, CSRF, cookie trocado, PKCE incompatível, expiração, e-mail não confirmado, provedor diferente, preservação de UUID/dados/admin, dois aparelhos e nova conta isolada. Nenhum código de e-mail é enviado no fluxo Google. A instalação do cliente Google e o login no projeto real ainda dependem das configurações externas do proprietário.

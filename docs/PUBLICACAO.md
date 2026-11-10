@@ -2,6 +2,8 @@
 
 O código foi preparado para o site atual em `https://peaceful-genie-fd5166.netlify.app`, com Supabase para contas e dados. As etapas abaixo ainda precisam ser feitas nas contas do proprietário. Publicar ou salvar um ambiente Codex não executa estas etapas.
 
+**Acesso atual do piloto:** siga primeiro [GOOGLE.md](GOOGLE.md) para configurar **Continuar com Google**. Esse acesso não depende de SMTP. Os passos de e-mail abaixo são opcionais, para reativar cadastro/recuperação por códigos com `EMAIL_CODES_ENABLED=true`; ficam desativados por padrão. Os requisitos de banco, sessões, backup e publicação com funções continuam necessários.
+
 ## 1. Preservar os dados atuais
 
 Antes das migrações, exporte as tabelas `cashbooks` e `dre_books` no painel do Supabase ou use o backup PostgreSQL disponível na sua operação. Guarde as cópias em local privado. A exportação das tabelas financeiras não é uma cópia completa da autenticação. Preserve também o banco local `.data`, caso ainda o utilize.
@@ -23,7 +25,7 @@ Confira em Authentication se `yansiqueirapedro@gmail.com` é realmente a conta c
 
 ## 3. Configurar e-mail e proteção contra automação
 
-O proprietário informou que ainda **não tem SMTP**. É necessário contratar ou criar uma conta em um provedor de e-mail transacional, verificar o remetente e preencher **Authentication → Email/SMTP** no Supabase. Um domínio de envio pode gerar custo; condições gratuitas, limites e exigências variam por provedor. O remetente padrão do Supabase não deve ser usado como solução de envio público.
+O SMTP do Gmail foi tentado no piloto e retornou erro de autenticação `535`. Para reativar códigos por e-mail, será necessário corrigir e validar o SMTP. É necessário contratar ou criar uma conta em um provedor de e-mail transacional, verificar o remetente e preencher **Authentication → Email/SMTP** no Supabase. Um domínio de envio pode gerar custo; condições gratuitas, limites e exigências variam por provedor. O remetente padrão do Supabase não deve ser usado como solução de envio público.
 
 No Supabase:
 
@@ -88,7 +90,7 @@ Siga [BACKUPS.md](BACKUPS.md). Cadastros novos exigem uma cópia externa confirm
 
 ## 7. Validar com e-mails e aparelhos reais
 
-Após configurar SMTP, backup e privacidade, habilite em um ambiente de testes os três valores: `PUBLIC_AUTH_ENABLED=true`, `EMAIL_SETUP_CONFIRMED=true` e `BACKUP_SETUP_CONFIRMED=true`. Confirme também que o Supabase permite novos cadastros e exige confirmação de e-mail. Use contas e dados sintéticos para os testes de [VALIDACAO.md](VALIDACAO.md).
+Após configurar SMTP, backup e privacidade, habilite em um ambiente de testes `EMAIL_CODES_ENABLED=true` e os três valores: `PUBLIC_AUTH_ENABLED=true`, `EMAIL_SETUP_CONFIRMED=true` e `BACKUP_SETUP_CONFIRMED=true`. Confirme também que o Supabase permite novos cadastros e exige confirmação de e-mail. Use contas e dados sintéticos para os testes de [VALIDACAO.md](VALIDACAO.md).
 
 O código local já foi testado, mas isso não confirma a entrega do provedor SMTP, as políticas instaladas no seu Supabase ou o funcionamento do deploy real. Faça esses testes antes de convidar usuários para registrar dados financeiros.
 

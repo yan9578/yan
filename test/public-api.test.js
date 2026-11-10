@@ -55,7 +55,7 @@ test('limites persistentes, enumeração, confirmação de e-mail e indisponibil
 
 test('configuração pública exige pré-requisitos e HTTPS, e cookies de produção são Secure',async()=>{
  assert.throws(()=>serverConfig({NODE_ENV:'production',APP_ORIGIN:'http://test.invalid',SUPABASE_URL:'https://test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test',SUPABASE_SERVICE_ROLE_KEY:'sb_secret_test',SESSION_SECRET:'a'.repeat(40)}),/HTTPS/);
- assert.throws(()=>serverConfig({APP_ORIGIN:'https://test.invalid',SUPABASE_URL:'https://test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test',SUPABASE_SERVICE_ROLE_KEY:'sb_secret_test',SESSION_SECRET:'a'.repeat(40),PUBLIC_AUTH_ENABLED:'true'}),/SMTP/);
+ assert.throws(()=>serverConfig({APP_ORIGIN:'https://test.invalid',SUPABASE_URL:'https://test.supabase.co',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_test',SUPABASE_SERVICE_ROLE_KEY:'sb_secret_test',SESSION_SECRET:'a'.repeat(40),PUBLIC_AUTH_ENABLED:'true',EMAIL_CODES_ENABLED:'true'}),/SMTP/);
  const pg=await platformDatabase();try{const {provider,password}=await seedProvider(pg),config=testConfig({production:true,origin:'https://test.invalid'}),c=client(createPublicApi(config,{provider,logger:()=>{}}),config);const r=await c.call('login','POST',{email:'a@example.invalid',password});assert.match(r.headers.get('set-cookie'),/; Secure/);assert.ok(!r.headers.get('set-cookie').includes('Max-Age=2592000'));}finally{await pg.close();}
 });
 
