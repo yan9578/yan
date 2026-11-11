@@ -1,6 +1,6 @@
 # Entrar e criar conta com Google
 
-**Migração de hospedagem:** os exemplos abaixo usam o domínio antigo Netlify. Para a Vercel, siga primeiro [VERCEL.md](VERCEL.md) e substitua o domínio do aplicativo pelo endereço estável de produção. O callback do Supabase cadastrado no Google Cloud permanece igual.
+**Hospedagem atual:** o domínio de produção informado é `https://yan-khaki-two.vercel.app`. Para configurar a Vercel, siga [VERCEL.md](VERCEL.md). Os exemplos abaixo já usam esse endereço. O callback do Supabase cadastrado no Google Cloud permanece igual.
 
 Este piloto usa Google como acesso principal. O Google confirma a identidade, o Supabase valida a autorização e o servidor cria a sessão HttpOnly do Caixa Claro. Este fluxo não envia códigos por SMTP. Recuperação da Conta Google fica com o próprio Google.
 
@@ -14,7 +14,7 @@ O código está implementado e tem testes locais. **É necessário configurar o 
 4. Em **Branding**, informe o nome **Caixa Claro**, o e-mail de suporte e o contato do desenvolvedor. Siga os campos obrigatórios apresentados. Não solicite acesso ao Gmail ou à caixa de mensagens.
 5. Em **Audience**, escolha **External**. Para o piloto, use o modo **Testing** e adicione em **Test users** cada conta Google que testará o aplicativo. Use contas que você controla antes de convidar outras pessoas.
 6. Em **Clients → Create client**, escolha **Web application**. Dê um nome, como **Caixa Claro Web**.
-7. Se pedir **Authorized JavaScript origins**, informe `https://peaceful-genie-fd5166.netlify.app`.
+7. Se pedir **Authorized JavaScript origins**, informe `https://yan-khaki-two.vercel.app`.
 8. Em **Authorized redirect URIs**, cadastre exatamente:
 
 ```text
@@ -40,13 +40,13 @@ Em **Authentication → URL Configuration**, configure:
 **Site URL**:
 
 ```text
-https://peaceful-genie-fd5166.netlify.app
+https://yan-khaki-two.vercel.app
 ```
 
 **Redirect URLs** — adicione este endereço completo:
 
 ```text
-https://peaceful-genie-fd5166.netlify.app/api/oauth/google/callback
+https://yan-khaki-two.vercel.app/api/oauth/google/callback
 ```
 
 Os endereços de retorno têm destinos diferentes:
@@ -54,13 +54,13 @@ Os endereços de retorno têm destinos diferentes:
 | Onde cadastrar | Retorno |
 | --- | --- |
 | Cliente Web no Google Cloud | `https://ppzlnrydbdxdkbytrwly.supabase.co/auth/v1/callback` |
-| Redirect URLs no Supabase | `https://peaceful-genie-fd5166.netlify.app/api/oauth/google/callback` |
+| Redirect URLs no Supabase | `https://yan-khaki-two.vercel.app/api/oauth/google/callback` |
 
 Mantenha **Allow new users to sign up** habilitado para permitir novas contas. O Google verifica o endereço no fluxo OAuth; isso não exige ativar confirmação automática de contas por senha. A confirmação de e-mail dos fluxos antigos pode permanecer protegida.
 
 ## 3. Publicação e configurações do aplicativo
 
-O aplicativo habilita o botão Google por padrão. **Não é necessário colocar Client ID ou Client Secret no Netlify.** Eles ficam no Supabase. As variáveis existentes de URL, chave pública, chave administrativa, origem e segredo da sessão continuam necessárias.
+O aplicativo habilita o botão Google por padrão. **Não é necessário colocar Client ID ou Client Secret no Vercel.** Eles ficam no Supabase. As variáveis existentes de URL, chave pública, chave administrativa, origem e segredo da sessão continuam necessárias.
 
 - `GOOGLE_AUTH_ENABLED`: padrão `true`. Use `false` somente para retirar o botão/endpoint de início do aplicativo.
 - `EMAIL_CODES_ENABLED`: padrão `false`. Cadastro/recuperação por códigos ficam desativados. Entrar com uma senha já existente permanece disponível.
@@ -69,7 +69,7 @@ O aplicativo habilita o botão Google por padrão. **Não é necessário colocar
 
 Google como provedor habilitado no aplicativo não comprova que o cliente externo já está configurado. Ao clicar, o servidor confere o provedor no Supabase e apresenta um erro específico se estiver ausente.
 
-Configurações alteradas no Supabase/Google não exigem um novo build. Alterações nas variáveis de funções no Netlify exigem novo deploy. Se quiser reativar os códigos futuramente, configure e teste o SMTP e as opções correspondentes antes de mudar `EMAIL_CODES_ENABLED`.
+Configurações alteradas no Supabase/Google não exigem um novo build. Alterações nas variáveis de funções no Vercel exigem novo deploy. Se quiser reativar os códigos futuramente, configure e teste o SMTP e as opções correspondentes antes de mudar `EMAIL_CODES_ENABLED`.
 
 ## 4. Teste real antes do piloto
 

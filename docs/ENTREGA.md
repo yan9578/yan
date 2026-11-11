@@ -15,11 +15,13 @@ O piloto passa a oferecer **Continuar com Google** para entrar ou criar conta se
 
 ## Validação realizada
 
-`npm test`: **33 testes aprovados**. Build concluído. Testes de navegador cobrem o retorno entre origens, preservação de UUID/dados/admin de conta existente, conta nova isolada, outro aparelho, cancelamento e retorno sem cookie. Os testes de códigos/CAPTCHA existentes também passaram. O navegador Google passou também pelo adaptador Vercel, incluindo query do callback, cookies separados, dados existentes e nova conta isolada. O rewrite é emulado localmente; o deploy remoto ainda precisa ser validado.
+`npm test`: **34 testes aprovados**. Build concluído. Testes de navegador cobrem o retorno entre origens, preservação de UUID/dados/admin de conta existente, conta nova isolada, outro aparelho, cancelamento e retorno sem cookie. Os testes de códigos/CAPTCHA existentes também passaram. O navegador Google passou também pelo adaptador Vercel, incluindo query do callback, cookies separados, dados existentes e nova conta isolada. O rewrite é emulado localmente; o deploy remoto ainda precisa ser validado.
 
 Google/Supabase Auth são simulados nos testes. O PostgreSQL/RLS e as APIs do aplicativo são executados. Não houve login real no Google Cloud do proprietário nem instalação de credenciais OAuth por este executor.
 
 ## Configuração externa necessária
+
+O domínio publicado pelo proprietário é `https://yan-khaki-two.vercel.app`. A função inclui padrões públicos para esse endereço; chaves do Supabase e `SESSION_SECRET` continuam obrigatórias nas variáveis privadas da Vercel. Os retornos exatos estão em [VERCEL.md](VERCEL.md).
 
 Siga primeiro [VERCEL.md](VERCEL.md) para importar o repositório, configurar variáveis e o domínio de produção. Depois [GOOGLE.md](GOOGLE.md): criar cliente OAuth Web no Google Cloud, adicionar os usuários de teste, habilitar Google no Supabase e configurar os dois endereços de retorno corretos. Client Secret fica somente no Supabase; não vai no chat, GitHub ou frontend.
 

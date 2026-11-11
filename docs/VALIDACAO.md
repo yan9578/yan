@@ -69,7 +69,7 @@ O SDK real da Cloudflare, as chaves instaladas no Supabase e o envio real pelo S
 
 ## Acesso Google
 
-O acesso principal agora usa OAuth PKCE, conforme [GOOGLE.md](GOOGLE.md). Foram aprovados 33 testes automatizados e os testes de navegador de acesso Google, códigos opcionais e CAPTCHA. A cobertura inclui retorno entre origens com cookie Lax, sessão Strict, autorização de uso único, CSRF, cookie trocado, PKCE incompatível, expiração, e-mail não confirmado, provedor diferente, preservação de UUID/dados/admin, dois aparelhos e nova conta isolada. Nenhum código de e-mail é enviado no fluxo Google. A instalação do cliente Google e o login no projeto real ainda dependem das configurações externas do proprietário.
+O acesso principal agora usa OAuth PKCE, conforme [GOOGLE.md](GOOGLE.md). Foram aprovados 34 testes automatizados e os testes de navegador de acesso Google, códigos opcionais e CAPTCHA. A cobertura inclui retorno entre origens com cookie Lax, sessão Strict, autorização de uso único, CSRF, cookie trocado, PKCE incompatível, expiração, e-mail não confirmado, provedor diferente, preservação de UUID/dados/admin, dois aparelhos e nova conta isolada. Nenhum código de e-mail é enviado no fluxo Google. A instalação do cliente Google e o login no projeto real ainda dependem das configurações externas do proprietário.
 
 ## Migração Vercel
 

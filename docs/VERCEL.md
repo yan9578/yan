@@ -17,11 +17,15 @@ Esse primeiro deploy pode mostrar a interface com o serviço ainda não configur
 
 ## 2. Variáveis de produção
 
+O proprietário publicou `https://yan-khaki-two.vercel.app`. A função agora usa os padrões públicos de [server/vercel-config.js](../server/vercel-config.js): origem, URL do Supabase, flags do Google/códigos, CAPTCHA e contato. As variáveis do painel têm prioridade. **Para este projeto, faltam somente `SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SERVICE_ROLE_KEY` e `SESSION_SECRET` no painel da Vercel.** Não crie campos públicos vazios, pois isso substitui os padrões. O diagnóstico `SUPABASE_URL / MISSING` foi apresentado antes dessa atualização.
+
+A rotina de backup já configurada no piloto continua informada como habilitada; a admissão de uma conta nova ainda consulta no banco a data real da cópia externa e recusa backup com mais de 48 horas. A flag não substitui essa verificação.
+
 Abra **Project → Settings → Environment Variables**. Cadastre para **Production**, somente dentro da Vercel. Use chaves do mesmo Supabase que já contém os dados. Não envie valores privados no chat, Git ou frontend.
 
 | Nome | Valor |
 | --- | --- |
-| `APP_ORIGIN` | URL estável da Vercel, com `https://`, sem caminho ou barra no final |
+| `APP_ORIGIN` | Padrão: `https://yan-khaki-two.vercel.app` |
 | `SUPABASE_URL` | `https://ppzlnrydbdxdkbytrwly.supabase.co` |
 | `SUPABASE_PUBLISHABLE_KEY` | Publishable key do projeto Supabase (ou anon legada correta) |
 | `SUPABASE_SERVICE_ROLE_KEY` | Chave administrativa do projeto, somente no servidor; marque Sensitive se disponível |
@@ -31,7 +35,7 @@ Abra **Project → Settings → Environment Variables**. Cadastre para **Product
 | `PUBLIC_AUTH_ENABLED` | `false` |
 | `EMAIL_SETUP_CONFIRMED` | `false`, pois o fluxo Google não usa SMTP |
 | `BACKUP_SETUP_CONFIRMED` | `true` somente se a rotina de backup do GitHub está configurada e verificada |
-| `TURNSTILE_SITE_KEY` | Mesma chave pública da Cloudflare, necessária para o login por senha protegido |
+| `TURNSTILE_SITE_KEY` | Chave pública existente já definida no código; adicione o hostname na Cloudflare |
 | `PRIVACY_CONTROLLER` | `Yan` |
 | `PRIVACY_CONTACT_EMAIL` | `yansiqueirapedro@gmail.com` |
 
@@ -39,26 +43,28 @@ Abra **Project → Settings → Environment Variables**. Cadastre para **Product
 
 Se não conseguir recuperar o segredo da sessão antigo, gere outro com um gerenciador de senhas (ao menos 32 caracteres aleatórios) ou localmente com `node scripts/generate-secret.mjs`. Trocar esse segredo invalida a leitura das sessões anteriores; não apaga usuários nem documentos financeiros. Preserve a chave de backup existente.
 
+As duas chaves do Supabase ficam em **Project Settings → API Keys**. Copie a Publishable key para o campo público. Para o campo administrativo, use a Secret key do servidor ou a chave legada service_role compatível; a chave anon não é administrativa. O Client Secret do Google é outra credencial e permanece somente no provedor Google do Supabase.
+
 Depois de salvar todas as variáveis, abra **Deployments → último deploy → ⋯ → Redeploy**. Variáveis alteradas não atualizam um deploy antigo. Nunca habilite produção por inteiro em Previews com domínios diferentes para contornar proteção de origem.
 
 ## 3. Atualizar os endereços do login
 
-Substitua `https://SEU-DOMINIO.vercel.app` abaixo pelo domínio de produção real, exatamente igual a `APP_ORIGIN`.
+O domínio de produção informado pelo proprietário é `https://yan-khaki-two.vercel.app`. Os endereços abaixo já estão preenchidos para esse site.
 
 **Supabase → Authentication → URL Configuration**:
 
-- Site URL: `https://SEU-DOMINIO.vercel.app`
-- Redirect URLs: adicione `https://SEU-DOMINIO.vercel.app/api/oauth/google/callback`.
+- Site URL: `https://yan-khaki-two.vercel.app`
+- Redirect URLs: adicione `https://yan-khaki-two.vercel.app/api/oauth/google/callback`.
 
 **Google Cloud → Google Auth Platform → Clients → seu cliente Web**:
 
-- Authorized JavaScript origins: adicione `https://SEU-DOMINIO.vercel.app`, sem barra final ou caminho.
+- Authorized JavaScript origins: adicione `https://yan-khaki-two.vercel.app`, sem barra final ou caminho.
 - Authorized redirect URIs: o retorno continua `https://ppzlnrydbdxdkbytrwly.supabase.co/auth/v1/callback`. Esse endereço aponta para o Supabase e não muda com a hospedagem.
 - Supabase → Sign In / Providers → Google: mantenha o Client ID completo terminado em `.apps.googleusercontent.com` e o Client Secret do mesmo cliente. Use as instruções de [GOOGLE.md](GOOGLE.md). Se o Google está em Testing, adicione os endereços de teste em Audience → Test users.
 
 **Cloudflare → Turnstile → seu widget → Hostname Management**:
 
-- Adicione apenas o hostname novo, por exemplo `SEU-DOMINIO.vercel.app`, sem `https://` ou caminho. O widget e o segredo no Supabase continuam correspondentes. Isso preserva o login por senha; Google não usa esse CAPTCHA no aplicativo.
+- Adicione apenas o hostname novo, por exemplo `yan-khaki-two.vercel.app`, sem `https://` ou caminho. O widget e o segredo no Supabase continuam correspondentes. Isso preserva o login por senha; Google não usa esse CAPTCHA no aplicativo.
 
 ## 4. Validar antes de liberar
 
@@ -69,4 +75,4 @@ Substitua `https://SEU-DOMINIO.vercel.app` abaixo pelo domínio de produção re
 5. Teste o login por senha existente e o CAPTCHA no domínio novo. A recuperação principal deste piloto é pela Conta Google, sem envio de código pelo aplicativo.
 6. Consulte **Vercel → Usage**. A API administrativa informa o provedor e oferece o painel, mas não consulta nem calcula créditos da Vercel automaticamente.
 
-Não houve publicação remota da Vercel por este executor: não há conta ou credenciais da Vercel vinculadas à sessão. Os testes locais executam a função Node, o rewrite de teste, APIs e PostgreSQL/RLS. O navegador testa Google com provedor Auth simulado; o roteamento real, as variáveis e as credenciais OAuth só ficam confirmados após os testes acima no deploy do proprietário.
+Não houve publicação remota da Vercel por este executor: não há conta ou credenciais da Vercel vinculadas à sessão. Os testes locais executam a função Node, o rewrite de teste, APIs e PostgreSQL/RLS. O proprietário publicou o site e apresentou `SERVER_NOT_CONFIGURED / SUPABASE_URL / MISSING` na rota de configuração. A consulta direta por este executor foi bloqueada pela política de rede; não é evidência de erro do site. O navegador testa Google com provedor Auth simulado; o roteamento real, as variáveis e as credenciais OAuth só ficam confirmados após os testes acima no deploy do proprietário.

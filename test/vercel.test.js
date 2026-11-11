@@ -1,6 +1,16 @@
 import {test} from 'node:test';import assert from 'node:assert/strict';import {createServer} from 'node:http';
 import {createVercelAdapter} from '../server/vercel-adapter.js';import {vercelTestServer} from '../test-support/vercel-server.js';
 import {platformDatabase} from '../test-support/platform-db.js';import {seedProvider,testConfig} from '../test-support/provider.js';import {serverConfig} from '../server/config.js';
+import {vercelConfig,vercelDefaults} from '../server/vercel-config.js';
+
+test('Vercel usa domínio de produção e padrões públicos, exige as três credenciais e respeita configurações explícitas',()=>{
+ const credentials={VERCEL:'1',SUPABASE_PUBLISHABLE_KEY:'sb_publishable_fixture',SUPABASE_SERVICE_ROLE_KEY:'sb_secret_fixture',SESSION_SECRET:'fixture-'.repeat(6)};
+ const config=vercelConfig(credentials);assert.equal(config.origin,'https://yan-khaki-two.vercel.app');assert.equal(config.url,'https://ppzlnrydbdxdkbytrwly.supabase.co');assert.equal(config.production,true);assert.equal(config.googleAuth,true);assert.equal(config.emailCodesEnabled,false);assert.equal(config.publicAuth,false);assert.equal(config.backupReady,true);
+ assert.ok(!Object.keys(vercelDefaults).some(k=>/SECRET|SERVICE_ROLE|PUBLISHABLE_KEY/.test(k)));
+ for(const key of ['SUPABASE_PUBLISHABLE_KEY','SUPABASE_SERVICE_ROLE_KEY','SESSION_SECRET']){const env={...credentials};delete env[key];assert.throws(()=>vercelConfig(env),e=>e.configVariable===key&&e.configReason==='MISSING');}
+ const other=vercelConfig({...credentials,APP_ORIGIN:'https://other.example',SUPABASE_URL:'https://other.supabase.co',GOOGLE_AUTH_ENABLED:'false',BACKUP_SETUP_CONFIRMED:'false'});assert.equal(other.origin,'https://other.example');assert.equal(other.url,'https://other.supabase.co');assert.equal(other.googleAuth,false);assert.equal(other.backupReady,false);
+ assert.throws(()=>vercelConfig({...credentials,APP_ORIGIN:'http://other.example'}),e=>e.configVariable==='APP_ORIGIN');assert.throws(()=>vercelConfig({...credentials,SESSION_SECRET:'short'}),e=>e.configVariable==='SESSION_SECRET');
+});
 
 test('Vercel mantém cookies separados, retorno OAuth, query e IP da plataforma; limita corpo e rejeita rota ambígua',async()=>{
  const calls=[],adapter=createVercelAdapter(()=>async(request,context)=>{calls.push({request,context,body:request.method==='POST'?await request.json():null});const h=new Headers({Location:'https://test.invalid/?auth=google_success#','Cache-Control':'no-store'});h.append('Set-Cookie','cc_google=; Path=/api/oauth/google/callback; HttpOnly; SameSite=Lax; Max-Age=0');h.append('Set-Cookie','cc_session=fixture; Path=/api; HttpOnly; SameSite=Strict; Secure');return new Response(null,{status:303,headers:h});},()=> 'https://test.invalid');
