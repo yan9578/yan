@@ -83,6 +83,7 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
  }
 
  async function hosting(){
+  if(config.hostingProvider==='vercel')return {provider:'vercel',configured:false};
   if(!config.netlifyToken||!config.netlifyAccount)return {configured:false};
   if(hostingCache&&hostingCache.until>clock())return hostingCache.data;
   if(!/^[A-Za-z0-9_-]{1,100}$/.test(config.netlifyAccount))return {configured:true,available:false};
@@ -275,7 +276,7 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
     if(path==='/api/admin/metrics'&&method==='GET'){
      const days=Number(url.searchParams.get('days')||30);if(![7,30,90].includes(days))throw new HttpError(400,'Período inválido.');
      const metrics=await provider.rpc('app_admin_metrics',{p_days:days},{token});
-     return respond(200,{...metrics,databaseLimitMb:config.databaseLimitMb,hosting:await hosting(),hostingDashboard:config.netlifyDashboard,configuration:{publicAuth:config.emailCodesEnabled!==false&&config.publicAuth,googleAuth:config.googleAuth===true,emailCodesEnabled:config.emailCodesEnabled!==false,emailReady:config.emailReady,backupReady:config.backupReady,captchaConfigured:!!config.captchaSiteKey},timeZone:'America/Sao_Paulo',retentionDays:90});
+     return respond(200,{...metrics,databaseLimitMb:config.databaseLimitMb,hosting:await hosting(),hostingDashboard:config.hostingProvider==='vercel'?'https://vercel.com/dashboard':config.netlifyDashboard,configuration:{publicAuth:config.emailCodesEnabled!==false&&config.publicAuth,googleAuth:config.googleAuth===true,emailCodesEnabled:config.emailCodesEnabled!==false,emailReady:config.emailReady,backupReady:config.backupReady,captchaConfigured:!!config.captchaSiteKey},timeZone:'America/Sao_Paulo',retentionDays:90});
     }
     if(path==='/api/admin/requests'&&method==='GET')return respond(200,await provider.rpc('app_admin_requests',{}, {token}));
     if(path==='/api/admin/deletion'&&method==='POST'){

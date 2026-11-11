@@ -1,5 +1,7 @@
 # Publicar o Caixa Claro
 
+> A migração atual para Vercel está em [VERCEL.md](VERCEL.md). As instruções Netlify abaixo permanecem como referência da hospedagem anterior.
+
 O código foi preparado para o site atual em `https://peaceful-genie-fd5166.netlify.app`, com Supabase para contas e dados. As etapas abaixo ainda precisam ser feitas nas contas do proprietário. Publicar ou salvar um ambiente Codex não executa estas etapas.
 
 **Acesso atual do piloto:** siga primeiro [GOOGLE.md](GOOGLE.md) para configurar **Continuar com Google**. Esse acesso não depende de SMTP. Os passos de e-mail abaixo são opcionais, para reativar cadastro/recuperação por códigos com `EMAIL_CODES_ENABLED=true`; ficam desativados por padrão. Os requisitos de banco, sessões, backup e publicação com funções continuam necessários.

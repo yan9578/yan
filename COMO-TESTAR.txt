@@ -1,3 +1,6 @@
+HOSPEDAGEM VERCEL
+O passo a passo atual para publicar está em docs/VERCEL.md. Use o mesmo Supabase e configure o novo domínio nos retornos de autenticação.
+
 CAIXA CLARO — ACESSO COM GOOGLE
 
 O acesso principal do piloto é Continuar com Google, sem códigos por SMTP.

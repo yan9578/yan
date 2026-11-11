@@ -1,9 +1,9 @@
 import {chromium} from 'playwright';import assert from 'node:assert/strict';import {existsSync} from 'node:fs';
 import {platformDatabase,A} from '../test-support/platform-db.js';import {seedProvider,testConfig} from '../test-support/provider.js';
-import {installGoogleProvider} from '../test-support/google-provider.js';import {createPublicServer} from '../server/node-server.js';
+import {installGoogleProvider} from '../test-support/google-provider.js';import {createPublicServer} from '../server/node-server.js';import {vercelTestServer} from '../test-support/vercel-server.js';
 const pg=await platformDatabase(),{provider:base}=await seedProvider(pg),provider=installGoogleProvider(base);
 const config=testConfig({googleAuth:true,emailCodesEnabled:false,publicAuth:false,emailReady:false,captchaSiteKey:'test-only-key'}),errors=[];
-const server=createPublicServer(config,{provider,logger:()=>{}});await new Promise(r=>server.listen(0,'127.0.0.1',r));config.origin='http://127.0.0.1:'+server.address().port;
+const server=(process.env.TEST_HOSTING==='vercel'?vercelTestServer:createPublicServer)(config,{provider,logger:()=>{}});await new Promise(r=>server.listen(0,'127.0.0.1',r));config.origin='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({executablePath:process.env.BROWSER_PATH||(existsSync('/usr/bin/chromium')?'/usr/bin/chromium':undefined),args:process.env.CI||existsSync('/.dockerenv')?['--no-sandbox']:[]});
 const date=new Date().toISOString().slice(0,7)+'-01';let captchaRequests=0;const callbacks=[];
 async function client(email,{cancel=false,mobile=false}={}){

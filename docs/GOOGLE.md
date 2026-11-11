@@ -1,5 +1,7 @@
 # Entrar e criar conta com Google
 
+**Migração de hospedagem:** os exemplos abaixo usam o domínio antigo Netlify. Para a Vercel, siga primeiro [VERCEL.md](VERCEL.md) e substitua o domínio do aplicativo pelo endereço estável de produção. O callback do Supabase cadastrado no Google Cloud permanece igual.
+
 Este piloto usa Google como acesso principal. O Google confirma a identidade, o Supabase valida a autorização e o servidor cria a sessão HttpOnly do Caixa Claro. Este fluxo não envia códigos por SMTP. Recuperação da Conta Google fica com o próprio Google.
 
 O código está implementado e tem testes locais. **É necessário configurar o cliente OAuth nas contas Google Cloud e Supabase do proprietário para funcionar no site.** Não há credenciais desses painéis vinculadas a este executor.

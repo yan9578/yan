@@ -4,13 +4,13 @@ Fluxo de caixa como tela principal e DRE em uma área própria, com a mesma cont
 
 O acesso principal do piloto agora é **Continuar com Google**, para entrar ou criar conta sem SMTP. O login por senha continua disponível para contas existentes. Novos pedidos de códigos por e-mail ficam desativados por padrão. A configuração externa e os testes do login Google estão em [docs/GOOGLE.md](docs/GOOGLE.md); o botão depende de um cliente OAuth configurado no Google Cloud e no Supabase.
 
-O site existente já usa Netlify e Supabase. A alteração atual de acesso Google está implementada e testada localmente, mas sua validação no serviço real depende da configuração do cliente OAuth pelo proprietário. O SMTP apresentou falhas de autenticação no piloto; este acesso Google funciona sem enviar códigos pelo aplicativo. Os testes externos Google/Supabase Auth são simulados, enquanto APIs, navegador e PostgreSQL/RLS são executados.
+O site anterior usava Netlify e Supabase. A conta Netlify apresentou suspensão; a migração para Vercel está preparada em [docs/VERCEL.md](docs/VERCEL.md). O deploy real na Vercel e os novos endereços de autenticação dependem da configuração da conta pelo proprietário. A alteração atual de acesso Google está implementada e testada localmente, mas sua validação no serviço real depende da configuração do cliente OAuth pelo proprietário. O SMTP apresentou falhas de autenticação no piloto; este acesso Google funciona sem enviar códigos pelo aplicativo. Os testes externos Google/Supabase Auth são simulados, enquanto APIs, navegador e PostgreSQL/RLS são executados.
 
 ## Publicar a versão atual
 
-Siga [docs/PUBLICACAO.md](docs/PUBLICACAO.md). Agora é necessário publicar o frontend **e as funções de servidor**, usando o repositório ou a ferramenta do Netlify. Enviar somente `dist` pela publicação manual não instala o servidor. Os instaladores estáticos anteriores foram desativados.
+Para a hospedagem atual, siga [docs/VERCEL.md](docs/VERCEL.md). A Vercel importa `yan9578/yan`, branch `main`, executa o build em `dist` e publica a função de servidor automaticamente. O fluxo anterior do Netlify permanece documentado em [docs/PUBLICACAO.md](docs/PUBLICACAO.md). Enviar somente arquivos estáticos não instala a API.
 
-O mesmo projeto Netlify pode receber as próximas versões e conservar o endereço. Os dados ficam no Supabase e não são apagados pelo build do site. Não recrie contas nem tabelas para atualizar a interface.
+O mesmo projeto Vercel pode receber as próximas versões e conservar seu domínio de produção. Os dados ficam no Supabase e não são apagados pelo build do site. Não recrie contas nem tabelas para atualizar a interface.
 
 ## Desenvolvimento
 
@@ -39,7 +39,8 @@ Os testes usam dados sintéticos. O PostgreSQL é executado com PGlite; o transp
 
 ## Operação e recuperação
 
-- [Publicação e serviços externos](docs/PUBLICACAO.md)
+- [Publicação na Vercel e mudança de domínio](docs/VERCEL.md)
+- [Publicação anterior no Netlify e serviços externos](docs/PUBLICACAO.md)
 - [Backup criptografado e restauração](docs/BACKUPS.md)
 - [Testes, indicadores e limites da validação](docs/VALIDACAO.md)
 - [O que foi entregue e o que falta configurar](docs/ENTREGA.md)
