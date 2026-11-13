@@ -9,7 +9,7 @@
     "build": "node scripts/build-cloud.mjs",
     "backup:cloud": "node scripts/backup-cloud.mjs",
     "restore:cloud": "node scripts/restore-cloud.mjs",
-    "test:e2e": "node scripts/test-browser.mjs && node scripts/test-captcha-browser.mjs && node scripts/test-google-browser.mjs && TEST_HOSTING=vercel node scripts/test-google-browser.mjs"
+    "test:e2e": "node scripts/test-browser.mjs && node scripts/test-captcha-browser.mjs && node scripts/test-google-browser.mjs && TEST_HOSTING=vercel node scripts/test-google-browser.mjs && node scripts/test-cash-companies-browser.mjs"
   },
   "engines": {
     "node": "24.x"

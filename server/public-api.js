@@ -167,7 +167,7 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
     if(config.emailCodesEnabled===false){clear('cc_challenge');clear('cc_recovery');}
     else{try{const c=unseal(cookies(request.headers.get('cookie')).cc_challenge||'',config.secret,'challenge');if(c.until>clock())authStage={view:'verify',type:c.type,until:c.until};}catch{}
      if(cookies(request.headers.get('cookie')).cc_recovery)authStage={view:'reset'};}
-    return respond(200,{publicAuth:config.emailCodesEnabled!==false&&config.publicAuth&&config.emailReady,googleAuth:config.googleAuth===true,emailCodesEnabled:config.emailCodesEnabled!==false,captchaSiteKey:config.captchaSiteKey,privacy:{controller:config.privacyController,contact:config.privacyContact},serverMode:true,authStage});
+    return respond(200,{passwordLoginVisible:config.passwordLoginVisible===true,publicAuth:config.emailCodesEnabled!==false&&config.publicAuth&&config.emailReady,googleAuth:config.googleAuth===true,emailCodesEnabled:config.emailCodesEnabled!==false,captchaSiteKey:config.captchaSiteKey,privacy:{controller:config.privacyController,contact:config.privacyContact},serverMode:true,authStage});
    }
    if(path==='/api/login'&&method==='POST'){
     await rate('login-ip',ip,20,900);

@@ -31,6 +31,7 @@ Abra **Project → Settings → Environment Variables**. Cadastre para **Product
 | `SUPABASE_SERVICE_ROLE_KEY` | Chave administrativa do projeto, somente no servidor; marque Sensitive se disponível |
 | `SESSION_SECRET` | Segredo de sessão com pelo menos 32 caracteres; marque Sensitive se disponível |
 | `GOOGLE_AUTH_ENABLED` | `true` |
+| `PASSWORD_LOGIN_VISIBLE` | `false` por padrão: interface oferece somente Google |
 | `EMAIL_CODES_ENABLED` | `false` |
 | `PUBLIC_AUTH_ENABLED` | `false` |
 | `EMAIL_SETUP_CONFIRMED` | `false`, pois o fluxo Google não usa SMTP |
@@ -72,7 +73,7 @@ O domínio de produção informado pelo proprietário é `https://yan-khaki-two.
 2. Use **Continuar com Google** com o mesmo e-mail da conta antiga. Confira o mesmo UUID em Supabase → Authentication → Users e os valores conhecidos de caixa e DRE. Não apague nem recrie usuários. A associação automática de identidades de e-mail verificado precisa ser validada no Supabase real.
 3. Teste logout, novo login e a mesma conta no celular. A mudança de domínio exige nova autenticação. Rascunhos/armazenamento local pendentes no domínio antigo não são transferidos automaticamente; confira dados efetivamente salvos no Supabase.
 4. Teste outra conta Google: ela deve começar com seus próprios dados e não ter administração. Novas contas exigem um backup externo confirmado nas últimas 48 horas. Confira a rotina do GitHub se houver bloqueio de cadastro.
-5. Teste o login por senha existente e o CAPTCHA no domínio novo. A recuperação principal deste piloto é pela Conta Google, sem envio de código pelo aplicativo.
+5. O acesso público atual usa somente Google. Os formulários antigos de senha/CAPTCHA estão ocultos. Se futuramente forem reexibidos com `PASSWORD_LOGIN_VISIBLE=true`, valide o CAPTCHA no domínio novo antes de liberar esse caminho.
 6. Consulte **Vercel → Usage**. A API administrativa informa o provedor e oferece o painel, mas não consulta nem calcula créditos da Vercel automaticamente.
 
 Não houve publicação remota da Vercel por este executor: não há conta ou credenciais da Vercel vinculadas à sessão. Os testes locais executam a função Node, o rewrite de teste, APIs e PostgreSQL/RLS. O proprietário publicou o site e apresentou `SERVER_NOT_CONFIGURED / SUPABASE_URL / MISSING` na rota de configuração. A consulta direta por este executor foi bloqueada pela política de rede; não é evidência de erro do site. O navegador testa Google com provedor Auth simulado; o roteamento real, as variáveis e as credenciais OAuth só ficam confirmados após os testes acima no deploy do proprietário.

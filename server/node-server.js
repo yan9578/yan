@@ -2,7 +2,7 @@ import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {createPublicApi} from './public-api.js';
 import {serverConfig} from './config.js';
-export const staticFiles=['index.html','app.js','api.js','style.css','auth.css','auth.js','drafts.js','account.js','admin.js','telemetry.js','privacy.js','privacidade.html','finance.js','dre.html','dre.css','dre.js','dre-model.js'];
+export const staticFiles=['index.html','app.js','api.js','style.css','auth.css','auth.js','drafts.js','account.js','admin.js','telemetry.js','privacy.js','privacidade.html','finance.js','cash-model.js','cash-companies.js','dre.html','dre.css','dre.js','dre-model.js'];
 export function createPublicServer(config=serverConfig(),options={}){
  const handle=createPublicApi(config,options);
  return createServer(async(req,res)=>{

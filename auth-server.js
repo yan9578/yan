@@ -1,3 +1,4 @@
+import {validateCashCompany} from './public/cash-model.js';
 import {staticFiles} from './server/node-server.js';
 import {M as DRE} from './public/dre-model.js';
 import {createServer} from 'node:http';
@@ -18,7 +19,7 @@ CREATE TABLE IF NOT EXISTS attempts(username TEXT PRIMARY KEY, count INTEGER NOT
 CREATE TABLE IF NOT EXISTS dre_books(user_id INTEGER PRIMARY KEY REFERENCES users(id), revision INTEGER NOT NULL, document TEXT NOT NULL);`);return db;}
 export function createUser(db,name,password){if(!/^[A-Za-z0-9_]{2,40}$/.test(name)||typeof password!=='string'||password.length<8)throw Error('Nome ou senha inválidos.');if(db.prepare('SELECT id FROM users WHERE username=?').get(name.toLowerCase()))return false;db.prepare('INSERT INTO users(username,display_name,password_hash) VALUES (?,?,?)').run(name.toLowerCase(),name,hashPassword(password));return true;}
 function validDate(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&!Number.isNaN(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s;}
-function cleanRecord(r){if(!r||typeof r.id!=='string'||!/^[a-zA-Z0-9-]{1,80}$/.test(r.id)||!['income','expense'].includes(r.type)||!['Pix','Dinheiro','Débito','Crédito'].includes(r.method)||!Number.isSafeInteger(r.amount)||r.amount<=0||r.amount>1e12||typeof r.description!=='string'||!r.description.trim()||r.description.length>120||typeof r.category!=='string'||r.category.length>60||!validDate(r.date)||(r.saleDate&&(!validDate(r.saleDate)||r.saleDate>r.date)))throw Error('Lançamento inválido.');return Object.fromEntries(['id','type','method','amount','description','category','date','saleDate'].map(k=>[k,r[k]??'']));}
+function cleanRecord(r){if(!r||typeof r.id!=='string'||!/^[a-zA-Z0-9-]{1,80}$/.test(r.id)||!['income','expense'].includes(r.type)||!['Pix','Dinheiro','Débito','Crédito'].includes(r.method)||!Number.isSafeInteger(r.amount)||r.amount<=0||r.amount>1e12||typeof r.description!=='string'||!r.description.trim()||r.description.length>120||typeof r.category!=='string'||r.category.length>60||!validDate(r.date)||(r.saleDate&&(!validDate(r.saleDate)||r.saleDate>r.date)))throw Error('Lançamento inválido.');return {...Object.fromEntries(['id','type','method','amount','description','category','date','saleDate'].map(k=>[k,r[k]??''])),...validateCashCompany(r)};}
 async function jsonBody(req){let text='';for await(const chunk of req){text+=chunk;if(Buffer.byteLength(text)>2_000_000)throw Error('Solicitação muito grande.');}return JSON.parse(text);}
 export function makeServer({database=defaultDatabase,origin=process.env.APP_ORIGIN,production=process.env.NODE_ENV==='production'}={}){
  if(production&&(!origin||!origin.startsWith('https://')))throw Error('Configure APP_ORIGIN com HTTPS em produção.');
@@ -34,7 +35,7 @@ export function makeServer({database=defaultDatabase,origin=process.env.APP_ORIG
    const path=new URL(req.url,'http://localhost').pathname;
    if(path.startsWith('/api/')){
     if(!['GET','HEAD'].includes(req.method)&& (req.headers.origin!==(origin||`http://${req.headers.host}`)||!req.headers['content-type']?.startsWith('application/json')))return send(403,{error:'Solicitação não autorizada.'});
-    if(path==='/api/config'&&req.method==='GET')return send(200,{publicAuth:false,serverMode:false,privacy:{controller:'',contact:''}});
+    if(path==='/api/config'&&req.method==='GET')return send(200,{publicAuth:false,passwordLoginVisible:true,serverMode:false,privacy:{controller:'',contact:''}});
     if(path==='/api/login'&&req.method==='POST'){
      const body=await jsonBody(req),name=String(body.username||'').trim().toLowerCase();
      if(typeof body.password!=='string'||body.password.length>256)return send(400,{error:'Usuário ou senha inválidos.'});

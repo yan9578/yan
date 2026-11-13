@@ -2,7 +2,7 @@
 
 **Hospedagem atual:** o domínio de produção informado é `https://yan-khaki-two.vercel.app`. Para configurar a Vercel, siga [VERCEL.md](VERCEL.md). Os exemplos abaixo já usam esse endereço. O callback do Supabase cadastrado no Google Cloud permanece igual.
 
-Este piloto usa Google como acesso principal. O Google confirma a identidade, o Supabase valida a autorização e o servidor cria a sessão HttpOnly do Caixa Claro. Este fluxo não envia códigos por SMTP. Recuperação da Conta Google fica com o próprio Google.
+Este piloto oferece somente Google na interface pública. Os formulários antigos de senha estão ocultos por padrão (`PASSWORD_LOGIN_VISIBLE=false`), com sua implementação preservada. O Google confirma a identidade, o Supabase valida a autorização e o servidor cria a sessão HttpOnly do Caixa Claro. Este fluxo não envia códigos por SMTP. Recuperação da Conta Google fica com o próprio Google.
 
 O código está implementado e tem testes locais. **É necessário configurar o cliente OAuth nas contas Google Cloud e Supabase do proprietário para funcionar no site.** Não há credenciais desses painéis vinculadas a este executor.
 
@@ -62,8 +62,9 @@ Mantenha **Allow new users to sign up** habilitado para permitir novas contas. O
 
 O aplicativo habilita o botão Google por padrão. **Não é necessário colocar Client ID ou Client Secret no Vercel.** Eles ficam no Supabase. As variáveis existentes de URL, chave pública, chave administrativa, origem e segredo da sessão continuam necessárias.
 
+- `PASSWORD_LOGIN_VISIBLE`: padrão `false`, oculta os formulários de e-mail/senha sem remover suas rotas.
 - `GOOGLE_AUTH_ENABLED`: padrão `true`. Use `false` somente para retirar o botão/endpoint de início do aplicativo.
-- `EMAIL_CODES_ENABLED`: padrão `false`. Cadastro/recuperação por códigos ficam desativados. Entrar com uma senha já existente permanece disponível.
+- `EMAIL_CODES_ENABLED`: padrão `false`. Cadastro/recuperação por códigos ficam desativados. As rotas de senha existentes são preservadas; os formulários ficam ocultos por padrão.
 - `PUBLIC_AUTH_ENABLED` e `EMAIL_SETUP_CONFIRMED`: controlam os fluxos opcionais de e-mail quando `EMAIL_CODES_ENABLED=true`. Não são necessários para o acesso Google.
 - `BACKUP_SETUP_CONFIRMED=true`: necessário para admitir uma primeira conta, juntamente com uma cópia externa recente. A rotina do GitHub deve continuar funcionando.
 

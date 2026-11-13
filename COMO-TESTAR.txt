@@ -1,3 +1,6 @@
+ATUALIZAÇÃO ATUAL
+A interface pública oferece somente Google. O Fluxo de Caixa agora compartilha as empresas da DRE, com lançamentos separados. Veja docs/EMPRESAS.md para vincular os lançamentos antigos sem atribuição automática. Não há SQL ou troca de chaves nesta atualização.
+
 HOSPEDAGEM VERCEL
 O passo a passo atual para publicar está em docs/VERCEL.md. Use o mesmo Supabase e configure o novo domínio nos retornos de autenticação.
 

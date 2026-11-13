@@ -7,6 +7,7 @@ export const vercelDefaults=Object.freeze({
  APP_ORIGIN:'https://yan-khaki-two.vercel.app',
  SUPABASE_URL:'https://ppzlnrydbdxdkbytrwly.supabase.co',
  GOOGLE_AUTH_ENABLED:'true',
+ PASSWORD_LOGIN_VISIBLE:'false',
  EMAIL_CODES_ENABLED:'false',
  PUBLIC_AUTH_ENABLED:'false',
  EMAIL_SETUP_CONFIRMED:'false',

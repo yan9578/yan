@@ -2,7 +2,7 @@ import {chromium} from 'playwright';import assert from 'node:assert/strict';impo
 import {platformDatabase,A} from '../test-support/platform-db.js';import {seedProvider,testConfig} from '../test-support/provider.js';
 import {installGoogleProvider} from '../test-support/google-provider.js';import {createPublicServer} from '../server/node-server.js';import {vercelTestServer} from '../test-support/vercel-server.js';
 const pg=await platformDatabase(),{provider:base}=await seedProvider(pg),provider=installGoogleProvider(base);
-const config=testConfig({googleAuth:true,emailCodesEnabled:false,publicAuth:false,emailReady:false,captchaSiteKey:'test-only-key'}),errors=[];
+const config=testConfig({googleAuth:true,passwordLoginVisible:false,emailCodesEnabled:false,publicAuth:false,emailReady:false,captchaSiteKey:'test-only-key'}),errors=[];
 const server=(process.env.TEST_HOSTING==='vercel'?vercelTestServer:createPublicServer)(config,{provider,logger:()=>{}});await new Promise(r=>server.listen(0,'127.0.0.1',r));config.origin='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({executablePath:process.env.BROWSER_PATH||(existsSync('/usr/bin/chromium')?'/usr/bin/chromium':undefined),args:process.env.CI||existsSync('/.dockerenv')?['--no-sandbox']:[]});
 const date=new Date().toISOString().slice(0,7)+'-01';let captchaRequests=0;const callbacks=[];
@@ -25,6 +25,7 @@ try{
  await pg.rpc('save_dre_book',{expected_revision:0,new_document:{version:1,companies:[{id:'c',name:'Empresa anterior',sector:''}],entries:[{id:'e',company:'c',category:'sales',date,description:'Venda anterior',amount:32100}]}},'authenticated',A);
  console.log('Verificando login Google de conta existente e retorno entre sites…');
  const {page,context}=await client('a@example.invalid');
+ assert.equal(await page.locator('#login-form').isVisible(),false);assert.equal(await page.locator('#auth-divider').isVisible(),false);assert.equal(await page.locator('#captcha-block').isVisible(),false);
  assert.equal(await page.getByRole('button',{name:'Criar conta',exact:true}).isVisible(),false);
  assert.equal(await page.getByRole('button',{name:'Esqueci minha senha',exact:true}).isVisible(),false);
  provider.googleEnabled=false;await google(page);await page.locator('#auth-error').filter({hasText:'configurar o provedor Google'}).waitFor();assert.equal(await page.locator('#google-login').isEnabled(),true);assert.match(await page.locator('#google-login').getAttribute('class'),/google-button/);

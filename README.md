@@ -1,10 +1,12 @@
 # Caixa Claro
 
-Fluxo de caixa como tela principal e DRE em uma área própria, com a mesma conta. Os lançamentos dos dois módulos continuam independentes. Esta versão oferece acesso com Google, sessões protegidas, dados por usuário e administração privada. Os fluxos de confirmação e recuperação por código permanecem opcionais.
+Fluxo de caixa como tela principal e DRE em uma área própria, com a mesma conta. Ambos usam o mesmo cadastro de empresas; os lançamentos e cálculos de caixa e DRE continuam independentes.
 
-O acesso principal do piloto agora é **Continuar com Google**, para entrar ou criar conta sem SMTP. O login por senha continua disponível para contas existentes. Novos pedidos de códigos por e-mail ficam desativados por padrão. A configuração externa e os testes do login Google estão em [docs/GOOGLE.md](docs/GOOGLE.md); o botão depende de um cliente OAuth configurado no Google Cloud e no Supabase.
+A interface pública oferece somente **Continuar com Google** para entrar ou criar conta. O proprietário confirmou o acesso Google no site real. Os formulários de e-mail/senha estão ocultos por padrão; a implementação e as credenciais antigas foram preservadas. A opção de manutenção `PASSWORD_LOGIN_VISIBLE=true` permite voltar a exibi-los futuramente, após validar o CAPTCHA e as demais configurações necessárias.
 
-O site anterior usava Netlify e Supabase. A conta Netlify apresentou suspensão; a migração para Vercel está preparada em [docs/VERCEL.md](docs/VERCEL.md). O deploy real na Vercel e os novos endereços de autenticação dependem da configuração da conta pelo proprietário. A alteração atual de acesso Google está implementada e testada localmente, mas sua validação no serviço real depende da configuração do cliente OAuth pelo proprietário. O SMTP apresentou falhas de autenticação no piloto; este acesso Google funciona sem enviar códigos pelo aplicativo. Os testes externos Google/Supabase Auth são simulados, enquanto APIs, navegador e PostgreSQL/RLS são executados.
+O Fluxo de Caixa permite selecionar, cadastrar e editar empresas do mesmo cadastro da DRE. Totais, histórico, gráficos, busca e CSV exibem somente a empresa selecionada. Lançamentos anteriores sem empresa ficam em **Sem empresa definida**, aguardando vinculação explícita. Veja [docs/EMPRESAS.md](docs/EMPRESAS.md).
+
+O site usa Vercel e Supabase em `https://yan-khaki-two.vercel.app`. A publicação está em [docs/VERCEL.md](docs/VERCEL.md); configurações do provedor Google estão em [docs/GOOGLE.md](docs/GOOGLE.md). Os testes locais usam Auth simulado, com APIs, navegador e PostgreSQL/RLS executados. Não acessam os dados financeiros reais do proprietário.
 
 ## Publicar a versão atual
 
