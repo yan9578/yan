@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "start": "node server.js",
+    "preview:local": "node scripts/preview.mjs",
+    "test:preview": "node scripts/test-preview-browser.mjs",
     "test": "node --test test/*.test.js",
     "build": "node scripts/build-cloud.mjs",
     "backup:cloud": "node scripts/backup-cloud.mjs",

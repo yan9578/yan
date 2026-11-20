@@ -74,6 +74,6 @@ export function createCashCompanies({getRecords,persist,render,toast,isSaving}){
   if(!confirm('Vincular os '+rows.length+' lançamentos sem empresa a “'+c.name+'”? Confira se todos pertencem a esta empresa.'))return;
   if(await persist(getRecords().map(r=>recordCompany(r)?r:withCompany(r,c)))){choose(id);toast('Lançamentos vinculados à empresa selecionada.');}
  };
- return {load,paint,fillRecord,attach,current,select:choose,records:()=>companyRecords(getRecords(),selected),get busy(){return busy;},
+ return {load,paint,fillRecord,attach,current,select:choose,companies:()=>dreDocument.companies,records:()=>companyRecords(getRecords(),selected),get busy(){return busy;},
   acceptDre(saved){accept(saved);render();}};
 }

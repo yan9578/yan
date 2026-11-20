@@ -1,6 +1,7 @@
 import {validateCashCompany} from './public/cash-model.js';
 import {staticFiles} from './server/node-server.js';
 import {M as DRE} from './public/dre-model.js';
+import {applyCommand, currentProfile, emptyOperations, isoDay} from './public/operations-model.js';
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
 import {mkdirSync,chmodSync} from 'node:fs';
@@ -21,9 +22,18 @@ export function createUser(db,name,password){if(!/^[A-Za-z0-9_]{2,40}$/.test(nam
 function validDate(s){return typeof s==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(s)&&!Number.isNaN(Date.parse(s))&&new Date(s).toISOString().slice(0,10)===s;}
 function cleanRecord(r){if(!r||typeof r.id!=='string'||!/^[a-zA-Z0-9-]{1,80}$/.test(r.id)||!['income','expense'].includes(r.type)||!['Pix','Dinheiro','Débito','Crédito'].includes(r.method)||!Number.isSafeInteger(r.amount)||r.amount<=0||r.amount>1e12||typeof r.description!=='string'||!r.description.trim()||r.description.length>120||typeof r.category!=='string'||r.category.length>60||!validDate(r.date)||(r.saleDate&&(!validDate(r.saleDate)||r.saleDate>r.date)))throw Error('Lançamento inválido.');return {...Object.fromEntries(['id','type','method','amount','description','category','date','saleDate'].map(k=>[k,r[k]??''])),...validateCashCompany(r)};}
 async function jsonBody(req){let text='';for await(const chunk of req){text+=chunk;if(Buffer.byteLength(text)>2_000_000)throw Error('Solicitação muito grande.');}return JSON.parse(text);}
-export function makeServer({database=defaultDatabase,origin=process.env.APP_ORIGIN,production=process.env.NODE_ENV==='production'}={}){
+export function makeServer({database=defaultDatabase,origin=process.env.APP_ORIGIN,production=process.env.NODE_ENV==='production',preview=false}={}){
  if(production&&(!origin||!origin.startsWith('https://')))throw Error('Configure APP_ORIGIN com HTTPS em produção.');
  const db=openDatabase(database),dummyHash=hashPassword(randomBytes(24).toString('hex'));
+ if(preview)db.exec('CREATE TABLE IF NOT EXISTS operation_books(user_id INTEGER PRIMARY KEY REFERENCES users(id), revision INTEGER NOT NULL, document TEXT NOT NULL)');
+ const readOperations=id=>{
+  const row=db.prepare('SELECT revision,document FROM operation_books WHERE user_id=?').get(id);
+  return row?{revision:row.revision,document:JSON.parse(row.document)}:{revision:0,document:emptyOperations()};
+ };
+ const readDre=id=>{
+  const book=db.prepare('SELECT revision,document FROM dre_books WHERE user_id=?').get(id);
+  return book?{revision:book.revision,document:JSON.parse(book.document)}:{revision:0,document:DRE.empty()};
+ };
  const files=Object.fromEntries(staticFiles.map(f=>['/'+f,f]));files['/']='index.html';
  const server=createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Cache-Control','no-store');res.setHeader('Referrer-Policy','same-origin');
@@ -35,7 +45,7 @@ export function makeServer({database=defaultDatabase,origin=process.env.APP_ORIG
    const path=new URL(req.url,'http://localhost').pathname;
    if(path.startsWith('/api/')){
     if(!['GET','HEAD'].includes(req.method)&& (req.headers.origin!==(origin||`http://${req.headers.host}`)||!req.headers['content-type']?.startsWith('application/json')))return send(403,{error:'Solicitação não autorizada.'});
-    if(path==='/api/config'&&req.method==='GET')return send(200,{publicAuth:false,passwordLoginVisible:true,serverMode:false,privacy:{controller:'',contact:''}});
+    if(path==='/api/config'&&req.method==='GET')return send(200,{publicAuth:false,passwordLoginVisible:true,serverMode:false,preview,privacy:{controller:'',contact:''}});
     if(path==='/api/login'&&req.method==='POST'){
      const body=await jsonBody(req),name=String(body.username||'').trim().toLowerCase();
      if(typeof body.password!=='string'||body.password.length>256)return send(400,{error:'Usuário ou senha inválidos.'});
@@ -50,12 +60,21 @@ export function makeServer({database=defaultDatabase,origin=process.env.APP_ORIG
     const token=/\bsession=([a-f0-9]{64})\b/.exec(req.headers.cookie||'')?.[1];
     const user=token&&db.prepare('SELECT users.* FROM sessions JOIN users ON users.id=sessions.user_id WHERE token_hash=? AND expires>?').get(digest(token),Date.now());
     if(!user)return send(401,{error:'Entre na sua conta para continuar.'});
-    if(path==='/api/me'&&req.method==='GET')return send(200,{username:user.display_name,isAdmin:false});
+    if(path==='/api/me'&&req.method==='GET')return send(200,{username:user.display_name,isAdmin:false,...(preview?{preview:true}:{})});
     if(path==='/api/logout'&&req.method==='POST'){db.prepare('DELETE FROM sessions WHERE token_hash=?').run(digest(token));cookie('',0);return send(200,{ok:true});}
     if(path==='/api/records'&&req.method==='GET')return send(200,{revision:user.revision,records:db.prepare('SELECT data FROM records WHERE user_id=?').all(user.id).map(x=>JSON.parse(x.data))});
     if(path==='/api/records'&&req.method==='PUT'){
      const body=await jsonBody(req);if(!Array.isArray(body.records)||body.records.length>5000||!Number.isSafeInteger(body.revision))return send(400,{error:'Dados inválidos.'});
      const rows=body.records.map(cleanRecord);if(new Set(rows.map(x=>x.id)).size!==rows.length)return send(400,{error:'Lançamentos duplicados.'});
+     if(preview){
+      const document=readOperations(user.id).document;
+      for(let i=0;i<rows.length;i++){
+       const account=body.records[i].account;
+       if(!account)continue;
+       if(!currentProfile(document,rows[i].company).accounts.some(a=>a.id===account))return send(400,{error:'Conta financeira inválida.'});
+       rows[i].account=account;
+      }
+     }
      db.exec('BEGIN IMMEDIATE');try{
       const result=db.prepare('UPDATE users SET revision=revision+1 WHERE id=? AND revision=?').run(user.id,body.revision);
       if(!result.changes){db.exec('ROLLBACK');return send(409,{error:'Seus dados mudaram em outra janela. Revise os dados atualizados e tente novamente.'});}
@@ -63,14 +82,17 @@ export function makeServer({database=defaultDatabase,origin=process.env.APP_ORIG
      }catch(err){db.exec('ROLLBACK');throw err;}
      return send(200,{revision:body.revision+1});
     }
-    if(path==='/api/dre'&&req.method==='GET'){
-     const book=db.prepare('SELECT revision,document FROM dre_books WHERE user_id=?').get(user.id);
-     return send(200,book?{revision:book.revision,document:JSON.parse(book.document)}:{revision:0,document:DRE.empty()});
-    }
+    if(path==='/api/dre'&&req.method==='GET')return send(200,readDre(user.id));
     if(path==='/api/dre'&&req.method==='PUT'){
      const body=await jsonBody(req);
      if(!Number.isSafeInteger(body.revision)||body.revision<0)return send(400,{error:'Versão inválida.'});
      try{DRE.validate(body.document);}catch{return send(400,{error:'Dados da DRE inválidos.'});}
+     if(preview){
+      const {operations,profiles,transfers}=readOperations(user.id).document;
+      const linked=new Set([...operations,...profiles,...transfers].map(o=>o.company));
+      const next=new Set(body.document.companies.map(c=>c.id));
+      if([...linked].some(id=>!next.has(id)))return send(400,{error:'O cadastro possui operações ou configurações vinculadas. Preserve a empresa para manter o histórico.'});
+     }
      db.exec('BEGIN IMMEDIATE');
      try{
       const previous=db.prepare('SELECT revision FROM dre_books WHERE user_id=?').get(user.id);
@@ -79,6 +101,25 @@ export function makeServer({database=defaultDatabase,origin=process.env.APP_ORIG
       db.exec('COMMIT');
      }catch(err){db.exec('ROLLBACK');throw err;}
      return send(200,{revision:body.revision+1});
+    }
+    if(preview&&path==='/api/operations'&&req.method==='GET')return send(200,readOperations(user.id));
+    if(preview&&path==='/api/operations'&&req.method==='POST'){
+     const body=await jsonBody(req);
+     const previous=readOperations(user.id);
+     if(body?.revision!==previous.revision)return send(409,{error:'Os dados mudaram em outra janela. Revise os valores e tente novamente.'});
+     let document;
+     try{
+      document=applyCommand(previous.document,body.command,{companies:readDre(user.id).document.companies,today:isoDay(),now:new Date().toISOString()});
+      if(Buffer.byteLength(JSON.stringify(document))>5_000_000)throw Error('Limite de dados da prévia atingido.');
+     }catch(error){return send(400,{error:error.message});}
+     const saved=db.prepare('INSERT INTO operation_books VALUES(?,?,?) ON CONFLICT(user_id) DO UPDATE SET revision=excluded.revision,document=excluded.document WHERE operation_books.revision=?')
+       .run(user.id,previous.revision+1,JSON.stringify(document),previous.revision);
+     if(!saved.changes)return send(409,{error:'Os dados mudaram em outra janela. Revise os valores e tente novamente.'});
+     return send(200,{revision:previous.revision+1,document});
+    }
+    if(preview&&path==='/api/account/export'&&req.method==='GET'){
+     return send(200,{format:'caixa-claro-preview-v1',exportedAt:new Date().toISOString(),dre:readDre(user.id),operations:readOperations(user.id),
+      cash:{revision:user.revision,records:db.prepare('SELECT data FROM records WHERE user_id=?').all(user.id).map(row=>JSON.parse(row.data))}});
     }
     return send(404,{error:'Não encontrado.'});
    }

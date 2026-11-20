@@ -5,6 +5,7 @@ let user=null,busy=false;
 const $=s=>document.querySelector(s),scopeName=s=>s==='dre'?'DRE':'Fluxo de caixa';
 const canonical=value=>JSON.stringify(value&&typeof value==='object'?Array.isArray(value)?value.map(v=>JSON.parse(canonical(v))):Object.fromEntries(Object.keys(value).sort().map(k=>[k,JSON.parse(canonical(value[k]))])):value);
 function download(data,name){const url=URL.createObjectURL(new Blob([JSON.stringify(data,null,2)],{type:'application/json'})),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}
+export async function exportAccount(){download(await api('account/export'),'caixa-claro-meus-dados.json');}
 async function retryDraft(d){
  const latest=await api(d.scope),field=d.scope==='dre'?'document':'records';
  if(latest.revision>d.payload.revision&&canonical(latest[field])===canonical(d.payload[field])){acknowledgeDraft(d.scope,d.id);return;}
@@ -22,7 +23,7 @@ export function setAccount(value){user=value;$('#account-email').textContent=val
 export function initAccount(){
  $('#account-open').onclick=async()=>{$('#account-feedback').textContent='';$('#account-dialog').showModal();await renderDrafts();};$('#account-close').onclick=()=>$('#account-dialog').close();
  $('#review-analytics').onclick=()=>{$('#account-dialog').close();reviewConsent();};
- $('#account-export').onclick=async e=>{e.target.disabled=true;try{download(await api('account/export'),'caixa-claro-meus-dados.json');$('#account-feedback').textContent='Seus dados foram exportados.';}catch(err){$('#account-feedback').textContent=err.message;}finally{e.target.disabled=false;}};
+ $('#account-export').onclick=async e=>{e.target.disabled=true;try{await exportAccount();$('#account-feedback').textContent='Seus dados foram exportados.';}catch(err){$('#account-feedback').textContent=err.message;}finally{e.target.disabled=false;}};
  $('#account-delete').onclick=async e=>{if(!confirm('Enviar uma solicitação para excluir sua conta e seus dados? Ela será analisada pelo responsável.'))return;e.target.disabled=true;try{const result=await api('account/deletion','POST',{});$('#account-feedback').textContent='Solicitação registrada. Situação: '+({pending:'aguardando análise',retained:'em análise de retenção',processing:'em processamento',completed:'concluída'}[result.status]||result.status);}catch(err){$('#account-feedback').textContent=err.message;}finally{e.target.disabled=false;}};
  window.addEventListener('caixa:save-state',e=>{const d=e.detail,area=$('#save-status');area.dataset.state=d.state;area.textContent=d.state==='saving'?'Salvando alteração…':d.state==='saved'?'Salvo no servidor às '+new Date(d.at).toLocaleTimeString('pt-BR'):d.localSaved?'Alteração pendente no servidor · rascunho protegido neste aparelho. Abra Minha conta.':'Alteração não confirmada · mantenha a página aberta e tente novamente.';});
  window.addEventListener('online',async()=>{if(!user||busy)return;busy=true;let success=false;try{for(const d of await pendingDrafts()){if(d.unreadable)continue;try{await retryDraft(d);success=true;}catch{}}if(success){$('#save-status').textContent='Conexão restabelecida. Alterações pendentes confirmadas; recarregue os relatórios.';await renderDrafts();}}finally{busy=false;}});

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Caixa Claro · DRE</title>
-<link rel="stylesheet" href="/dre.css">
+<link rel="stylesheet" href="/dre.css"><link rel="stylesheet" href="/theme.css"><script type="module" src="/theme.js"></script>
 </head>
 <body>
 
@@ -38,16 +38,16 @@
 </nav>
 <div class="cards" id="cards">
   <div class="card"><label>Receita líquida</label>
-    <strong id="revenue"></strong><small>Receita bruta menos deduções</small>
+    <strong class="financial-value" id="revenue"></strong><small>Receita bruta menos deduções</small>
   </div>
   <div class="card"><label>Custos e despesas</label>
-    <strong id="expenses"></strong><small>Inclui depreciação, juros e tributos</small>
+    <strong class="financial-value" id="expenses"></strong><small>Inclui depreciação, juros e tributos</small>
   </div>
   <div class="card"><label id="profit-label">Lucro líquido</label>
-    <strong id="profit"></strong><small>Resultado do período selecionado</small>
+    <strong class="financial-value" id="profit"></strong><small>Resultado do período selecionado</small>
   </div>
   <div class="card"><label>Margem líquida</label>
-    <strong id="margin"></strong><small>Resultado ÷ receita líquida</small>
+    <strong class="financial-value" id="margin"></strong><small>Resultado ÷ receita líquida</small>
   </div>
 </div>
 <div id="empty" class="panel empty" hidden>
@@ -60,8 +60,8 @@
     <div class="panel">
       <h2>Como seu resultado evoluiu</h2>
       <p class="muted">Últimos 6 meses ·
-        <span style="color:#718ddd">■ Receita líquida</span> ·
-        <span style="color:#c99c65">■ Gastos</span>
+        <span class="dre-legend-revenue">■ Receita líquida</span> ·
+        <span class="dre-legend-expense">■ Gastos</span>
       </p>
       <div id="chart" class="trend"></div>
       <p class="notes">Clique no mês para selecioná-lo. Valores negativos

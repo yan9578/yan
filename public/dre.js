@@ -10,11 +10,11 @@ const esc=v=>String(v).replace(/[&<>"']/g,c=>({
   '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
 }[c]));
 
-const money=n=>(n/100).toLocaleString('pt-BR',{
+const money=n=>((n||0)/100).toLocaleString('pt-BR',{
   style:'currency',currency:'BRL'
 });
 
-const pct=n=>n===null?'—':n.toLocaleString('pt-BR',{
+const pct=n=>n===null?'—':(Math.abs(n)<0.05?0:n).toLocaleString('pt-BR',{
   minimumFractionDigits:1,maximumFractionDigits:1
 })+'%';
 
@@ -44,6 +44,11 @@ try{
 $('dre-main').setAttribute('aria-busy','false');
 
 const data=()=>db[db.mode];
+const reportBook=()=>{
+  const book=data();
+  const linked=db.mode==='real'?window.parent.caixaLinkedDre?.(book)||[]:[];
+  return {...book,entries:[...book.entries,...linked]};
+};
 const name=id=>data().companies.find(c=>c.id===id)?.name||'Empresa';
 const previous=()=>ytd
   ?(+month.slice(0,4)-1)+month.slice(4)
@@ -132,7 +137,9 @@ function render(){
 
   $('mode-label').textContent=db.mode==='demo'
     ?'DEMONSTRAÇÃO · Dados fictícios, separados dos seus dados.'
-    :'MEUS DADOS · DRE da sua conta, separada do fluxo de caixa.';
+    :window.parent.caixaOperationsEnabled?.()
+      ?'MEUS DADOS · Operações integradas e lançamentos avulsos da DRE.'
+      :'MEUS DADOS · DRE da sua conta, separada do fluxo de caixa.';
 
   document.querySelector('.banner').classList.toggle('real',db.mode==='real');
   $('mode').textContent=db.mode==='demo'
@@ -152,8 +159,9 @@ function render(){
     b.setAttribute('aria-pressed',String(b.dataset.view===view));
   });
 
-  const r=M.report(data(),company,month,ytd);
-  const old=M.report(data(),company,previous(),ytd);
+  const book=reportBook();
+  const r=M.report(book,company,month,ytd);
+  const old=M.report(book,company,previous(),ytd);
 
   for(const [id,n]of [
     ['revenue',r.netRevenue],['expenses',r.expenses],['profit',r.profit]
@@ -180,7 +188,7 @@ function render(){
     :data().companies.filter(c=>c.id===company);
 
   $('portfolio').innerHTML=cs.map(c=>{
-    const a=M.report(data(),c.id,month,ytd);
+    const a=M.report(book,c.id,month,ytd);
     return '<tr><td><button class="link" data-company="'+esc(c.id)+'">'+
       esc(c.name)+'</button><small>'+esc(c.sector)+'</small></td>'+
       '<td class="num">'+money(a.netRevenue)+'</td>'+
@@ -192,7 +200,7 @@ function render(){
 
   const series=Array.from({length:6},(_,i)=>{
     const m=M.shift(month,i-5);
-    return {m,r:M.report(data(),company,m)};
+    return {m,r:M.report(book,company,m)};
   });
   const max=Math.max(
     1,...series.flatMap(x=>[x.r.netRevenue,x.r.expenses])
@@ -236,7 +244,7 @@ function render(){
   renderLedger();
 
   $('companies').innerHTML=data().companies.map(c=>{
-    const a=M.report(data(),c.id,month,ytd);
+    const a=M.report(book,c.id,month,ytd);
     return '<article class="company-card"><h2>'+esc(c.name)+
       '</h2><p class="muted">'+esc(c.sector||'Setor não informado')+
       '</p><div class="result '+(a.profit<0?'neg':'pos')+'">'+
@@ -250,7 +258,7 @@ function render(){
 
 function entries(){
   const q=$('search').value.trim().toLowerCase();
-  return M.selected(data(),company,month,ytd)
+  return M.selected(reportBook(),company,month,ytd)
     .slice().reverse()
     .filter(e=>(e.description+' '+M.map[e.category].name)
       .toLowerCase().includes(q))
@@ -268,9 +276,10 @@ function renderLedger(){
     (M.map[e.category].group==='outside'?' · FORA DA DRE':'')+
     '</small></td><td>'+esc(name(e.company))+'</td>'+
     '<td class="num">'+money(e.amount)+'</td><td><div class="actions">'+
+    (e.linked?'<span class="muted">Gerenciado em Contas</span>':
     '<button class="link" data-edit-entry="'+esc(e.id)+'">Editar</button>'+
     '<button class="link" data-delete-entry="'+esc(e.id)+
-    '">Excluir</button></div></td></tr>'
+    '">Excluir</button>')+'</div></td></tr>'
   ).join('')||
     '<tr><td colspan="5">Nenhum lançamento encontrado neste período.</td></tr>';
 
@@ -505,7 +514,7 @@ function csvCell(v){
 }
 
 $('csv').onclick=()=>{
-  const r=M.report(data(),company,month,ytd);
+  const r=M.report(reportBook(),company,month,ytd);
   const rows=[
     ['Caixa Claro · DRE',db.mode==='demo'?'DADOS FICTÍCIOS':'DRE gerencial'],
     ['Empresa',scope()],

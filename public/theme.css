@@ -1,0 +1,49 @@
+:root[data-theme="dark"] {
+  color-scheme:dark;
+  --dark-canvas:#141517;
+  --dark-surface:#202225;
+  --dark-raised:#2a2d31;
+  --dark-field:#191b1e;
+  --dark-active:#383c42;
+  --dark-border:#464a51;
+  --dark-control:#727780;
+  --dark-text:#f1f2f4;
+  --dark-muted:#c0c3ca;
+  --dark-accent:#8dd9b3;
+  --dark-positive:#8dd9b3;
+  --dark-negative:#ffb4a4;
+  --dark-warning:#f6d58e;
+  color:var(--dark-text);
+  background:var(--dark-canvas);
+}
+[data-theme="dark"] :is(a,.text-button) {color:var(--dark-accent)}
+[data-theme="dark"] :is(button,input,select,textarea,a):focus-visible {
+  outline:2px solid var(--dark-accent);
+  outline-offset:3px;
+}
+[data-theme="dark"] dialog::backdrop {background:#090a0bc9}
+[data-theme="dark"] .primary {
+  background:#8dd9b3;
+  border-color:#8dd9b3;
+  color:#111d18;
+}
+[data-theme="dark"] .primary:hover {background:#a6e6c6}
+[data-theme="dark"] .danger-button {
+  color:var(--dark-negative);
+  background:#402823;
+  border-color:#a96055;
+}
+[data-theme="dark"] .danger-button:hover {background:#56342e}
+[data-theme="dark"] .danger-text {color:var(--dark-negative)}
+[data-theme="dark"] .privacy-page {background:var(--dark-canvas)}
+[data-theme="dark"] .privacy-page article {background:var(--dark-surface);border-color:var(--dark-border)}
+[data-theme="dark"] .privacy-page :is(p,li) {color:var(--dark-muted)}
+[data-theme="dark"] .privacy-page a {color:var(--dark-accent)}
+
+.financial-value {
+  font-variant-numeric:tabular-nums;
+  min-inline-size:0;
+  max-inline-size:100%;
+  overflow-wrap:anywhere;
+  line-height:1.2;
+}

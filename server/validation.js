@@ -6,7 +6,8 @@ export function validateRecords(rows){
  if(!Array.isArray(rows)||rows.length>5000)throw Error('Lançamentos inválidos.');
  const ids=new Set();return rows.map(r=>{
   if(!r||typeof r.id!=='string'||!/^[A-Za-z0-9-]{1,80}$/.test(r.id)||ids.has(r.id)||!['income','expense'].includes(r.type)||!['Pix','Dinheiro','Débito','Crédito'].includes(r.method)||!Number.isSafeInteger(r.amount)||r.amount<1||r.amount>1e12||typeof r.description!=='string'||!r.description.trim()||r.description.length>120||typeof r.category!=='string'||r.category.length>60||!M.dateValid(r.date)||(r.saleDate&&(!M.dateValid(r.saleDate)||r.saleDate>r.date)))throw Error('Lançamento inválido.');
-  ids.add(r.id);return {...Object.fromEntries(['id','type','method','amount','description','category','date','saleDate'].map(k=>[k,r[k]??''])),...validateCashCompany(r)};
+  if(Object.hasOwn(r,'account')&&(typeof r.account!=='string'||!/^[A-Za-z0-9-]{1,64}$/.test(r.account)))throw Error('Conta financeira inválida.');
+  ids.add(r.id);return {...Object.fromEntries(['id','type','method','amount','description','category','date','saleDate'].map(k=>[k,r[k]??''])),...validateCashCompany(r),...(r.account?{account:r.account}:{})};
  });
 }
 export function validateDre(doc){M.validate(doc);return {version:1,companies:doc.companies.map(c=>({id:c.id,name:c.name,sector:c.sector})),entries:doc.entries.map(e=>Object.fromEntries(['id','company','date','description','category','amount'].map(k=>[k,e[k]])))};}

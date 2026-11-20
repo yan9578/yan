@@ -1,3 +1,4 @@
+import {cents} from './finance.js';
 
 export const M=(()=>{
   const uid=()=>globalThis.crypto?.randomUUID?.()||
@@ -55,20 +56,6 @@ export const M=(()=>{
       !monthValid(v.slice(0,7)))return false;
     const d=new Date(v+'T12:00:00Z');
     return !isNaN(d)&&d.toISOString().slice(0,10)===v;
-  }
-
-  function cents(text){
-    let s=String(text).trim().replace(/^R\$\s*/,'').replace(/\s/g,'');
-    if(/^(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d{1,2})?$/.test(s)){
-      s=s.replace(/\./g,'').replace(',','.');
-    }else if(!/^\d+\.\d{1,2}$/.test(s)){
-      throw Error('Informe um valor como 1.250,50, maior que zero.');
-    }
-    const a=s.split('.');
-    const n=Number(a[0])*100+Number((a[1]||'').padEnd(2,'0'));
-    if(!Number.isSafeInteger(n)||n<=0||n>1e12)
-      throw Error('Valor inválido ou acima de R$ 10 bilhões.');
-    return n;
   }
 
   const empty=()=>({version:1,companies:[],entries:[]});

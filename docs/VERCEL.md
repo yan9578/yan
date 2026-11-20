@@ -77,3 +77,9 @@ O domínio de produção informado pelo proprietário é `https://yan-khaki-two.
 6. Consulte **Vercel → Usage**. A API administrativa informa o provedor e oferece o painel, mas não consulta nem calcula créditos da Vercel automaticamente.
 
 Não houve publicação remota da Vercel por este executor: não há conta ou credenciais da Vercel vinculadas à sessão. Os testes locais executam a função Node, o rewrite de teste, APIs e PostgreSQL/RLS. O proprietário publicou o site e apresentou `SERVER_NOT_CONFIGURED / SUPABASE_URL / MISSING` na rota de configuração. A consulta direta por este executor foi bloqueada pela política de rede; não é evidência de erro do site. O navegador testa Google com provedor Auth simulado; o roteamento real, as variáveis e as credenciais OAuth só ficam confirmados após os testes acima no deploy do proprietário.
+## Operações integradas
+
+Antes de publicar uma versão que habilita **Contas**, **Agenda** e **Configurações**, aplique `cloud/006-integrated-operations.sql` após as migrações anteriores. Ela não converte lançamentos existentes. O livro integrado é criado ao gravar a primeira operação ou configuração da empresa.
+
+O livro usa a revisão da DRE para evitar sobrescritas concorrentes. Os backups da DRE no servidor incluem o livro integrado. Para restaurar em uma conta com operações integradas, use uma cópia que também contenha o livro. A restauração de uma cópia antiga que o omita é bloqueada para preservar as operações.
+

@@ -2,6 +2,7 @@ import {Supabase,ProviderError} from './supabase.js';
 import {opaque,sha256,secretKey,seal,unseal,cookie,cookies} from './security.js';
 import {email,password,validateRecords,validateDre,revision} from './validation.js';
 import {createHmac,createHash} from 'node:crypto';
+import {applyCommand,currentProfile,emptyOperations} from '../public/operations-model.js';
 
 class HttpError extends Error{constructor(status,message,code='REQUEST_FAILED',retryAfter){super(message);this.status=status;this.code=code;this.retryAfter=retryAfter;}}
 const invalid=()=>new HttpError(401,'Usuário, senha ou código inválidos.','AUTH_FAILED');
@@ -15,6 +16,12 @@ const tokenData=data=>({access:data.access_token,refresh:data.refresh_token,expi
 
 export function createPublicApi(config,{provider=new Supabase(config),clock=()=>Date.now(),logger=entry=>console.error(JSON.stringify(entry)),fetcher=fetch}={}){
  const refreshes=new Map();let hostingCache=null;
+ const blankDre=()=>({version:1,companies:[],entries:[]});
+ const readDre=async token=>{
+  const rows=await provider.request('/rest/v1/dre_books?select=revision,document',{token});
+  if(!Array.isArray(rows)||rows.length>1)throw new HttpError(503,'Não foi possível carregar os dados com segurança.','ISOLATION_CHECK_FAILED');
+  return rows[0]||{revision:0,document:blankDre()};
+ };
  const hmac=(value,purpose)=>createHmac('sha256',secretKey(config.secret,purpose)).update(value).digest('hex');
  async function rate(bucket,key,max,seconds){
   const data=await provider.rpc('app_limit',{p_bucket:bucket,p_key_hash:hmac(key,'rate'),p_max:max,p_seconds:seconds},{service:true});
@@ -242,23 +249,59 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
    identity=await authenticate(request);const token=identity.tokens.access,user=identity.user;
    if(path==='/api/me'&&method==='GET'){
     const admin=await provider.rpc('app_is_admin',{}, {token});await event('feature',user.id,'account');
-    return respond(200,{id:user.id,email:user.email,username:String(user.user_metadata?.display_name||user.email.split('@')[0]).slice(0,60),remember:identity.remember,isAdmin:admin===true,draftKey:hmac(user.id,'drafts')});
+    return respond(200,{id:user.id,email:user.email,username:String(user.user_metadata?.display_name||user.email.split('@')[0]).slice(0,60),remember:identity.remember,isAdmin:admin===true,draftKey:hmac(user.id,'drafts'),operationsEnabled:true});
    }
    if(path==='/api/logout'&&method==='POST'){
     await provider.rpc('app_session',{p_action:'delete',p_hash:identity.hash},{service:true});clear('cc_session');clear('cc_challenge');clear('cc_recovery');clear('cc_visitor');
     try{await provider.auth('logout?scope=local',{},token);}catch{logger({requestId,event:'PROVIDER_LOGOUT_RETRY'});}return respond(200,{ok:true});
    }
+   if(path==='/api/operations'){
+    feature='dre';
+    if(await provider.rpc('app_maintenance',{}, {service:true}))throw new HttpError(503,'O serviço está em manutenção. Tente mais tarde.','MAINTENANCE');
+    const saved=await readDre(token);
+    const previous=saved.document.operationBook||emptyOperations();
+    if(method==='GET')return respond(200,{revision:saved.revision,document:previous});
+    if(method==='POST'){
+     await rate('save-user',user.id,120,60);
+     if(body.revision!==saved.revision)throw new HttpError(409,'Os dados mudaram em outra janela. Revise os valores e tente novamente.','REVISION_CONFLICT');
+     const date=new Date(clock());
+     const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Sao_Paulo',dateStyle:'short'}).format(date);
+     let document;
+     try{
+      document=applyCommand(previous,body.command,{companies:saved.document.companies,today,now:date.toISOString()});
+      if(Buffer.byteLength(JSON.stringify({...saved.document,operationBook:document}))>1_950_000)throw Error('O livro financeiro atingiu o limite de armazenamento.');
+     }catch(error){throw new HttpError(400,error.message,'INVALID_DATA');}
+     const next=await provider.rpc('app_save_operations',{p_user:user.id,p_revision:saved.revision,p_book:document},{service:true});
+     await event('save_success',user.id,feature);
+     return respond(200,{revision:next,document});
+    }
+   }
    if(path==='/api/records'||path==='/api/dre'){
     feature=path.endsWith('dre')?'dre':'cash';
     if(await provider.rpc('app_maintenance',{}, {service:true}))throw new HttpError(503,'O serviço está em manutenção. Seus rascunhos serão preservados. Tente mais tarde.','MAINTENANCE');
     if(method==='GET'){
-     const rows=await provider.request(feature==='cash'?'/rest/v1/cashbooks?select=revision,records':'/rest/v1/dre_books?select=revision,document',{token});
+     if(feature==='dre'){
+      const book=await readDre(token);
+      await event('feature',user.id,feature);
+      return respond(200,{revision:book.revision,document:validateDre(book.document)});
+     }
+     const rows=await provider.request('/rest/v1/cashbooks?select=revision,records',{token});
      if(!Array.isArray(rows)||rows.length>1)throw new HttpError(503,'Não foi possível carregar os dados com segurança.','ISOLATION_CHECK_FAILED');
      await event('feature',user.id,feature);return respond(200,rows[0]||(feature==='cash'?{revision:0,records:[]}:{revision:0,document:{version:1,companies:[],entries:[]}}));
     }
     if(method==='PUT'){
      await rate('save-user',user.id,120,60);let rev,data;
      try{rev=revision(body.revision);data=feature==='cash'?validateRecords(body.records):validateDre(body.document);}catch(err){throw new HttpError(400,err.message,'INVALID_DATA');}
+     if(feature==='cash'&&data.some(r=>r.account)){
+      const book=(await readDre(token)).document.operationBook||emptyOperations();
+      if(data.some(r=>r.account&&!currentProfile(book,r.company).accounts.some(a=>a.id===r.account)))throw new HttpError(400,'Conta financeira inválida.','INVALID_DATA');
+     }
+     if(feature==='dre'){
+      const book=(await readDre(token)).document.operationBook;
+      const companies=new Set(data.companies.map(c=>c.id));
+      if(book&&[...book.operations,...book.profiles,...book.transfers].some(o=>!companies.has(o.company)))
+       throw new HttpError(409,'A empresa tem operações ou configurações vinculadas. Preserve-a para manter o histórico.','INVALID_STATE');
+     }
      const result=await provider.rpc(feature==='cash'?'save_cashbook':'save_dre_book',feature==='cash'?{expected_revision:rev,new_records:data}:{expected_revision:rev,new_document:data},{token});
      await event('save_success',user.id,feature);return respond(200,{revision:result});
     }
@@ -267,7 +310,8 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
     await rate('export-user',user.id,5,3600);const [cash,dre]=await Promise.all([provider.request('/rest/v1/cashbooks?select=revision,records',{token}),provider.request('/rest/v1/dre_books?select=revision,document',{token})]);
     if(cash.length>1||dre.length>1)throw new HttpError(503,'Não foi possível exportar com segurança.');
     const details=await provider.rpc('app_account_details',{}, {token});
-    return respond(200,{format:'caixa-claro-user-export-v1',exportedAt:new Date(clock()).toISOString(),account:{email:user.email,createdAt:user.created_at,emailConfirmedAt:user.email_confirmed_at,...details},cash:cash[0]||{revision:0,records:[]},dre:dre[0]||{revision:0,document:{version:1,companies:[],entries:[]}}});
+    const book=dre[0]||{revision:0,document:blankDre()};
+    return respond(200,{format:'caixa-claro-user-export-v1',exportedAt:new Date(clock()).toISOString(),account:{email:user.email,createdAt:user.created_at,emailConfirmedAt:user.email_confirmed_at,...details},cash:cash[0]||{revision:0,records:[]},dre:{revision:book.revision,document:validateDre(book.document)},operations:{revision:book.revision,document:book.document.operationBook||emptyOperations()}});
    }
    if(path==='/api/account/deletion'&&method==='POST'){await rate('delete-request-user',user.id,3,86400);const data=await provider.rpc('app_deletion_request',{}, {token});return respond(200,data);}
    if(path.startsWith('/api/admin/')){
