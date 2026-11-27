@@ -13,12 +13,12 @@ async function login(email){
  await context.route(config.url+'/auth/v1/authorize?**',async r=>{const url=new URL(r.request().url()),code=await provider.issueGoogleCode(email,url.searchParams.get('code_challenge'));await r.fulfill({contentType:'text/html',body:`<html><body><form method="get" action="${config.origin}/api/oauth/google/callback"><input name="code" type="hidden" value="${code}"><button>Escolher conta de teste</button></form></body></html>`});});
  await page.goto(config.origin);await page.locator('#analytics-decline').click();
  for(const selector of ['#login-form','#signup-form','#recover-form','#verify-form','#reset-form','#auth-divider','#captcha-block'])assert.equal(await page.locator(selector).isVisible(),false);
- await page.locator('#google-privacy').check();await page.locator('#google-login').click();await page.getByRole('button',{name:'Escolher conta de teste'}).click();await page.locator('#workspace:not([hidden])').waitFor();return page;
+ await page.locator('#google-privacy').check();await page.locator('#google-login').click();await page.getByRole('button',{name:'Escolher conta de teste'}).click();await page.locator('#operations-area h1').filter({hasText:/^Contas$/}).waitFor();await cashView(page);return page;
 }
 async function choose(p,id){await p.locator('#cash-company').selectOption(JSON.stringify(id));}
 async function company(p,name,{edit=false}={}){await p.locator(edit?'#cash-company-edit':'#cash-company-new').click();await p.locator('#cash-company-input').fill(name);await p.locator('#cash-company-form button[type=submit]').click();await p.locator('#cash-company-dialog').waitFor({state:'hidden'});return JSON.parse(await p.locator('#cash-company').inputValue());}
 async function cash(p,description,amount,type='income'){
- await p.locator('#new').click();await p.locator('#form [name=type]').selectOption(type);await p.locator('#form [name=description]').fill(description);await p.locator('#form [name=amount]').fill(amount);await p.locator('#form [name=date]').fill(date);await p.locator('#form button.full').click();await p.locator('#modal').waitFor({state:'hidden'});
+ await p.locator('#new-cash-only').click();await p.locator('#form [name=type]').selectOption(type);await p.locator('#form [name=description]').fill(description);await p.locator('#form [name=amount]').fill(amount);await p.locator('#form [name=date]').fill(date);await p.locator('#form button.full').click();await p.locator('#modal').waitFor({state:'hidden'});
 }
 async function totals(p,income,expense,balance){for(const [id,amount]of [['income',income],['expense',expense],['balance',balance]]){const expected=amount.toLocaleString('pt-BR',{style:'currency',currency:'BRL'});await p.waitForFunction(({id,expected})=>document.getElementById(id).textContent.replace(/\s/g,'')===expected.replace(/\s/g,''),{id,expected});}}
 async function dre(p){await p.locator('#dre-open').click();const f=p.frameLocator('#dre-frame');await f.locator('#dre-main[aria-busy=false]').waitFor();return f;}
@@ -27,7 +27,7 @@ try{
  await pg.rpc('save_cashbook',{expected_revision:0,new_records:[{id:'legacy',type:'income',method:'Pix',amount:9900,description:'Lançamento antigo preservado',category:'Vendas',date,saleDate:''}]},'authenticated',A);
  await pg.rpc('save_dre_book',{expected_revision:0,new_document:{version:1,companies,entries:dreEntries}},'authenticated',A);
  console.log('Verificando Google exclusivo, legado preservado e cadastro compartilhado com DRE…');
- const page=await login('a@example.invalid');page.on('dialog',d=>d.accept());await totals(page,99,0,99);assert.equal(await page.locator('#new').isDisabled(),true);assert.equal(await page.locator('#cash-legacy').isVisible(),true);
+ const page=await login('a@example.invalid');page.on('dialog',d=>d.accept());await totals(page,99,0,99);assert.equal(await page.locator('#new-cash-only').isDisabled(),true);assert.equal(await page.locator('#cash-legacy').isVisible(),true);
  await choose(page,'company-a');await totals(page,0,0,0);await choose(page,'company-b');await totals(page,0,0,0);
  const c=await company(page,'Serviços Sul');assert.ok(c);assert.equal((await dreData(page)).document.companies.length,3);assert.deepEqual((await dreData(page)).document.entries,dreEntries);
  console.log('Verificando R$ 50.000/35.000 e R$ 80.000/60.000 em caixas separados…');
@@ -36,7 +36,7 @@ try{
  await choose(page,'company-a');assert.ok(!(await page.locator('#rows').innerText()).includes('Horizonte'));await page.locator('#search').fill('Horizonte');assert.equal(await page.locator('#rows tr').count(),0);await page.locator('#search').fill('');
  const download=page.waitForEvent('download');await page.locator('#export').click();const exported=await download,csv=await readFile(await exported.path(),'utf8');assert.ok(csv.includes('Comercial Brasil'));assert.ok(!csv.includes('Horizonte'));assert.ok(!csv.includes('Lançamento antigo'));
  await page.getByRole('button',{name:'Editar Entrada Comercial Brasil',exact:true}).click();await page.locator('#form [name=description]').fill('Entrada Brasil editada');await page.locator('#form button.full').click();await page.locator('#modal').waitFor({state:'hidden'});assert.equal((await records(page)).records.find(r=>r.description==='Entrada Brasil editada').company,'company-a');
- await page.locator('#new').click();await page.locator('#form [name=description]').fill('Escolha explícita de outra empresa');await page.locator('#form [name=amount]').fill('1');await page.locator('#form [name=date]').fill(date);await page.locator('#record-company').selectOption(JSON.stringify('company-b'));await page.locator('#form button.full').click();await page.locator('#modal').waitFor({state:'hidden'});assert.equal(JSON.parse(await page.locator('#cash-company').inputValue()),'company-b');await totals(page,80001,60000,20001);
+ await page.locator('#new-cash-only').click();await page.locator('#form [name=description]').fill('Escolha explícita de outra empresa');await page.locator('#form [name=amount]').fill('1');await page.locator('#form [name=date]').fill(date);await page.locator('#record-company').selectOption(JSON.stringify('company-b'));await page.locator('#form button.full').click();await page.locator('#modal').waitFor({state:'hidden'});assert.equal(JSON.parse(await page.locator('#cash-company').inputValue()),'company-b');await totals(page,80001,60000,20001);
  await page.getByRole('button',{name:'Editar Escolha explícita de outra empresa',exact:true}).click();await page.locator('#record-company').selectOption(JSON.stringify('company-a'));await page.locator('#form button.full').click();await page.locator('#modal').waitFor({state:'hidden'});await totals(page,50001,35000,15001);await page.getByRole('button',{name:'Excluir Escolha explícita de outra empresa',exact:true}).click();await totals(page,50000,35000,15000);
  await choose(page,'company-b');await page.getByRole('button',{name:'Excluir Saída Horizonte',exact:true}).click();await totals(page,80000,0,80000);await page.getByRole('button',{name:'Desfazer',exact:true}).click();await totals(page,80000,60000,20000);
  // Os exemplos de uma empresa não substituem os lançamentos das demais.
@@ -55,15 +55,15 @@ try{
  const other=await login('a@example.invalid');await choose(other,'company-a');await totals(other,50099,35000,15099);await choose(other,'company-b');await totals(other,80000,60000,20000);
  console.log('Verificando revisão concorrente, outro usuário e cadastro removido…');
  const stale=await login('a@example.invalid');await choose(stale,'company-b');await choose(other,'company-a');await cash(other,'Mudança em outra janela','1');await totals(other,50100,35000,15100);
- await stale.locator('#new').click();await stale.locator('#form [name=description]').fill('Alteração concorrente B');await stale.locator('#form [name=amount]').fill('2');await stale.locator('#form [name=date]').fill(date);await stale.locator('#form button.full').click();await stale.locator('#toast').filter({hasText:'outra janela'}).waitFor();assert.equal(await stale.locator('#modal').isVisible(),true);assert.equal((await records(stale)).records.some(r=>r.description==='Alteração concorrente B'),false);await stale.locator('#form button.full').click();await stale.locator('#modal').waitFor({state:'hidden'});await totals(stale,80002,60000,20002);
+ await stale.locator('#new-cash-only').click();await stale.locator('#form [name=description]').fill('Alteração concorrente B');await stale.locator('#form [name=amount]').fill('2');await stale.locator('#form [name=date]').fill(date);await stale.locator('#form button.full').click();await stale.locator('#toast').filter({hasText:'outra janela'}).waitFor();assert.equal(await stale.locator('#modal').isVisible(),true);assert.equal((await records(stale)).records.some(r=>r.description==='Alteração concorrente B'),false);await stale.locator('#form button.full').click();await stale.locator('#modal').waitFor({state:'hidden'});await totals(stale,80002,60000,20002);
  const b=await login('b@example.invalid');assert.equal(await b.locator('#cash-company option').count(),1);assert.equal((await dreData(b)).document.companies.length,0);await totals(b,0,0,0);await company(b,'Comercial Brasil');await cash(b,'Privado de outra conta','7');assert.equal((await records(b)).records.length,1);
- await other.reload();await other.locator('#workspace:not([hidden])').waitFor();await choose(other,'company-b');await totals(other,80002,60000,20002);assert.ok(!(await other.locator('#rows').innerText()).includes('Privado de outra conta'));
+ await other.reload();await other.locator('#workspace:not([hidden])').waitFor();await cashView(other);await choose(other,'company-b');await totals(other,80002,60000,20002);assert.ok(!(await other.locator('#rows').innerText()).includes('Privado de outra conta'));
  // Uma edição concorrente na DRE não pode ser sobrescrita pelo cadastro do caixa.
  await choose(other,'company-a');await other.locator('#cash-company-edit').click();await other.locator('#cash-company-input').fill('Comercial Brasil Final');const concurrent=await dreData(stale),concurrentEntry={id:'dre-concurrent',company:'company-a',category:'sales',date,description:'DRE em outra janela',amount:20000};const changed=await stale.request.put(config.origin+'/api/dre',{headers:{Origin:config.origin},data:{revision:concurrent.revision,document:{...concurrent.document,entries:[...concurrent.document.entries,concurrentEntry]}}});assert.equal(changed.status(),200);
  await other.locator('#cash-company-form button[type=submit]').click();await other.locator('#cash-company-error').filter({hasText:'outra janela'}).waitFor();assert.equal(await other.locator('#cash-company-dialog').isVisible(),true);await other.locator('#cash-company-form button[type=submit]').click();await other.locator('#cash-company-dialog').waitFor({state:'hidden'});assert.ok((await dreData(other)).document.entries.some(e=>e.id==='dre-concurrent'));
  await choose(other,c);
- await other.locator('#ops-open').click();
- await other.locator('[data-action=new-operation]').click();
+ await other.locator('#new').click();
+ await other.locator('[data-action=operation-kind][data-id=purchase]').click();
  const prior=M.shift(month,-1), operation=other.locator('#ops-form');
  await operation.locator('[name=category]').selectOption('inventory');
  for(const [key,value] of Object.entries({description:'Mercadorias para teste',date:prior+'-01',due:date,amount:'10000',purchaseReference:'NF-001'})){
@@ -82,9 +82,25 @@ try{
  await frame.locator('#inventory-report-status').filter({hasText:'DRE provisória'}).waitFor();
  await frame.locator('#inventory-tab').click();
  await frame.locator('#inventory-net').filter({hasText:/10\.000,00/}).waitFor();
- await frame.locator('#inventory-form [name=opening]').fill('4000');
- await frame.locator('#inventory-form [name=ending]').fill('9000');
- await frame.locator('#inventory-save').click();
+ await other.locator('#ops-open').click();
+ const beforeClosing=await records(other);
+ await other.locator('[data-action=new-operation]').click();
+ await other.locator('[data-action=operation-kind][data-id=cmv]').click();
+ const closing=other.frameLocator('#ops-cmv-frame');
+ await closing.locator('#inventory-form').waitFor();
+ assert.equal(await closing.locator('#company').inputValue(),c);
+ await closing.locator('#month').fill(prior);
+ await closing.locator('#inventory-form [name=opening]').fill('4000');
+ await closing.locator('#inventory-form [name=ending]').fill('9000');
+ await closing.locator('#inventory-save').click();
+ await closing.locator('#inventory-cmv').filter({hasText:/5\.000,00/}).waitFor();
+ await other.locator('#ops-cmv-close').click();
+ assert.deepEqual(await records(other),beforeClosing);
+ await other.getByRole('row',{name:/Mercadorias para teste.*Parcial.*6\.000/}).waitFor();
+ frame=await dre(other);
+ await frame.locator('#month').fill(prior);
+ await frame.locator('#profit').filter({hasText:/5\.000,00/}).waitFor();
+ await frame.locator('#inventory-tab').click();
  await frame.locator('#inventory-cmv').filter({hasText:/5\.000,00/}).waitFor();
  await frame.locator('#month').fill(month);
  assert.equal(await frame.locator('#inventory-form [name=opening]').inputValue(),'9000,00');

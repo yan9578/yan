@@ -29,6 +29,7 @@ export function createCashCompanies({getRecords,persist,render,toast,isSaving}){
   $('cash-company-delete').disabled=!c?.id||busy||isSaving();
   $('cash-company-new').disabled=!ready||busy||isSaving();$('cash-company-refresh').disabled=busy||isSaving();
   $('new').disabled=!c||c.legacy||c.archived||busy||isSaving();$('demo').disabled=$('new').disabled;
+  $('new-cash-only').disabled=$('new').disabled;
   $('cash-legacy').hidden=!c?.legacy;
   const target=$('cash-legacy-target'),old=target.value;target.replaceChildren(...dreDocument.companies.map(c=>option(c.id,c.name)));if([...target.options].some(o=>o.value===old))target.value=old;
   $('cash-legacy-assign').disabled=!dreDocument.companies.length||busy||isSaving();

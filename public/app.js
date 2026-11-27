@@ -17,7 +17,7 @@ const operations=createOperations({businesses,manualRows:()=>records,renderCash:
  onSave(previous,next){
   if(!sharedDreRevision)return;
   businesses.advanceDreRevision(previous,next);
-  $('#dre-frame').contentWindow?.advanceDreRevision?.(previous,next);
+  for(const id of ['#dre-frame','#ops-cmv-frame'])$(id).contentWindow?.advanceDreRevision?.(previous,next);
  }});
 const allCompanyRows=()=>[...businesses.records(),...operations.cash().filter(r=>r.company===businesses.current()?.id)];
 window.caixaLinkedDre=book=>operations.dre(book);
@@ -170,7 +170,12 @@ $('#record-company').onchange=()=>fillCashAccount();
 $('#cash-movement-filter').onchange=render;
 $('#cash-category-filter').onchange=render;
 function open(record){if(saving||businesses.busy)return toast('Aguarde o salvamento em andamento.');editing=record?.id||null;const f=$('#form');f.reset();businesses.fillRecord(record);$('#error').textContent='';$('#form-title').textContent=record?'Editar lançamento':'Novo lançamento';f.elements.date.value=today();if(record)for(const k of ['type','description','method','date','saleDate','category'])f.elements[k].value=record[k]||'';if(record)f.elements.amount.value=(record.amount/100).toFixed(2).replace('.',',');fillCashAccount(record?.account);movementFields();$('#modal').showModal();}
-$('#new').onclick=()=>open();$('#close').onclick=()=>$('#modal').close();$('#form').onsubmit=async e=>{e.preventDefault();const f=e.target;try{const amount=cents(f.elements.amount.value.trim()),description=f.elements.description.value.trim();if(!description)throw Error('Informe uma descrição.');if(f.elements.date.value>today())throw Error('Registre somente valores já recebidos ou pagos.');if(f.elements.saleDate.value&&f.elements.saleDate.value>f.elements.date.value)throw Error('A venda não pode ser depois do recebimento.');const r={id:editing||newId(),amount,description};for(const k of ['type','method','date','saleDate','category'])r[k]=f.elements[k].value;if(r.type==='expense')r.saleDate='';if(operations.enabled())r.account=f.elements.account.value;const linked=businesses.attach(r,f.elements.company.value);const next=editing?records.map(x=>x.id===editing?linked:x):[...records,linked];if(await persist(next)){$('#modal').close();businesses.select(linked.company||'');showSavedRecord(linked);}}catch(err){$('#error').textContent=err.message;}};
+$('#new').onclick=async()=>{
+ if(!operations.cmvEnabled()){open();return;}
+ await operations.openArea('operations');
+ operations.selectOperationKind();
+};
+$('#new-cash-only').onclick=()=>open();$('#close').onclick=()=>$('#modal').close();$('#form').onsubmit=async e=>{e.preventDefault();const f=e.target;try{const amount=cents(f.elements.amount.value.trim()),description=f.elements.description.value.trim();if(!description)throw Error('Informe uma descrição.');if(f.elements.date.value>today())throw Error('Registre somente valores já recebidos ou pagos.');if(f.elements.saleDate.value&&f.elements.saleDate.value>f.elements.date.value)throw Error('A venda não pode ser depois do recebimento.');const r={id:editing||newId(),amount,description};for(const k of ['type','method','date','saleDate','category'])r[k]=f.elements[k].value;if(r.type==='expense')r.saleDate='';if(operations.enabled())r.account=f.elements.account.value;const linked=businesses.attach(r,f.elements.company.value);const next=editing?records.map(x=>x.id===editing?linked:x):[...records,linked];if(await persist(next)){$('#modal').close();businesses.select(linked.company||'');showSavedRecord(linked);}}catch(err){$('#error').textContent=err.message;}};
 $('#rows').onclick=async e=>{const edit=e.target.closest('[data-edit]'),del=e.target.closest('[data-delete]');if(edit)open(records.find(r=>r.id===edit.dataset.edit));if(del&&confirm('Excluir este lançamento? Você poderá desfazer logo em seguida.')){const deleted=records.find(r=>r.id===del.dataset.delete),next=records.filter(r=>r.id!==del.dataset.delete);if(await persist(next)){render();$('#toast').replaceChildren(document.createTextNode('Lançamento excluído. '));const undo=document.createElement('button');undo.textContent='Desfazer';undo.style.color='white';undo.onclick=async ()=>{if(await persist([...records,deleted])){render();toast('Lançamento restaurado.');}};$('#toast').append(undo);$('#toast').style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').style.display='none',10000);}}};
 for(const b of document.querySelectorAll('[data-period]'))b.onclick=()=>period(b.dataset.period);for(const id of ['from','to'])$('#'+id).onchange=()=>{document.querySelectorAll('[data-period]').forEach(b=>b.classList.remove('selected'));render();};$('#search').oninput=render;document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{hideOperations();$('#admin-area').hidden=true;$('#admin-open').classList.remove('active');$('#cash-content').hidden=false;$('#dre-area').hidden=true;$('#dre-open').classList.remove('active');view=b.dataset.view;track('cash');document.querySelectorAll('[data-view]').forEach(n=>n.classList.toggle('active',n===b));$('#title').textContent=view==='overview'?'Visão geral do caixa':'Histórico do caixa';$('#cash-view-help').textContent=view==='overview'?'Acompanhe o dinheiro recebido e pago no período.':'Consulte, filtre e edite movimentações já realizadas.';$('#breadcrumb').textContent=view==='overview'?'Visão geral':'Histórico';render();});
 $('#export').onclick=()=>{const rows=filteredHistory(filtered()).sort((a,b)=>b.date.localeCompare(a.date));if(!rows.length)return toast('Não há lançamentos neste período para exportar.');const url=URL.createObjectURL(new Blob([csv(rows)],{type:'text/csv;charset=utf-8;'})),a=document.createElement('a');a.href=url;a.download=`caixa-claro-${(businesses.current()?.name||'empresa').replace(/[^a-zA-Z0-9-]/g,'-')}-${today()}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Arquivo CSV exportado. Abra no Excel.');};
@@ -191,6 +196,14 @@ async function enter(user){
  $('#login-screen').hidden=true;
  $('#workspace').hidden=false;
  period(operations.period());
+ if(operations.cmvEnabled()){
+  const accounts=$('#ops-open');
+  accounts.parentElement.prepend(accounts);
+  $('#cash-company-name').nextElementSibling.textContent='Empresa selecionada';
+  $('#new').textContent='＋ Registrar operação';
+  $('#new-cash-only').hidden=false;
+  await operations.openArea('operations');
+ }
  await showPendingNotice();
 }
 initAccount();initAdmin();
@@ -223,7 +236,10 @@ $('#dre-open').onclick=async()=>{
   $('#admin-area').hidden=true;$('#admin-open').classList.remove('active');$('#cash-content').hidden=true;$('#dre-area').hidden=false;track('dre');
   document.querySelectorAll('[data-view]').forEach(b=>b.classList.remove('active'));
   $('#dre-open').classList.add('active');$('#breadcrumb').textContent='DRE · Resultado';
-  const frame=$('#dre-frame');if(frame.contentWindow&&operations.enabled())frame.contentWindow.dreNeedsReload=true;if(!frame.getAttribute('src')||(frame.contentWindow.dreNeedsReload&&!frame.contentDocument?.querySelector('dialog[open]')&&!frame.contentDocument?.body?.inert))frame.src='/dre.html';
+  const frame=$('#dre-frame');
+  if(operations.cmvEnabled())frame.dataset.company=businesses.current()?.id||'';
+  if(frame.contentWindow&&operations.enabled())frame.contentWindow.dreNeedsReload=true;
+  if(!frame.getAttribute('src')||(frame.contentWindow.dreNeedsReload&&!frame.contentDocument?.querySelector('dialog[open]')&&!frame.contentDocument?.body?.inert))frame.src='/dre.html';
 };
 
 $('#admin-open').onclick=()=>{if($('#admin-open').hidden)return;hideOperations();$('#cash-content').hidden=true;$('#dre-area').hidden=true;$('#admin-area').hidden=false;document.querySelectorAll('[data-view]').forEach(b=>b.classList.remove('active'));$('#dre-open').classList.remove('active');$('#admin-open').classList.add('active');$('#breadcrumb').textContent='Administração';track('admin');loadAdmin();};

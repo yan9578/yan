@@ -14,7 +14,7 @@ const choices={
  undo:'Desfazer revisão'
 };
 
-export function createInventoryView({bridge,scope,rerender,toast,ask}) {
+export function createInventoryView({bridge,scope,rerender,toast,ask,compact=false}) {
  const panel=$('inventory-view');
  const dialog=$('inventory-adjustment-dialog');
  let model,activeAdjustment,saving=false;
@@ -52,7 +52,8 @@ export function createInventoryView({bridge,scope,rerender,toast,ask}) {
   const {carried,opening,ending,purchases,net,losses,history,entries,acquisitions,cmv,calculated,issues,inconsistent}=model;
   const sourceRows=acquisitions.map(o=>'<li>'+esc(o.description)+' · '+date(o.date)+' · '+money(o.amount)+'</li>').join('');
   panel.innerHTML=
-   '<article class="panel"><h2>Fechamento mensal do CMV</h2><p>Informe os estoques em reais pelo custo, com base no inventário ou ERP. O mês da aquisição define as compras, independentemente do pagamento.</p>'+
+   '<article class="panel">'+(compact?'<p>Informe o custo total do estoque no início e no fim do mês.</p>':
+    '<h2>Fechamento mensal do CMV</h2><p>Informe os estoques em reais pelo custo, com base no inventário ou ERP. O mês da aquisição define as compras, independentemente do pagamento.</p>')+
    '<form id="inventory-form"><div class="inventory-grid">'+
     '<label>Estoque inicial (R$)<input name="opening" inputmode="decimal" value="'+editAmount(opening)+'"'+(carried?' readonly':'')+' placeholder="0,00">'+
     (carried?'<small>Transportado do fechamento do mês anterior.</small>':'<small>Informe o saldo inicial se o mês anterior ainda não tiver fechamento.</small>')+'</label>'+

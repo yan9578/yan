@@ -103,6 +103,9 @@ th,td{padding:7px 10px}
 }
 
 main{max-width:1400px;padding-top:22px}#dre-main[aria-busy=true]{opacity:.55;pointer-events:none}.module-note{border-left:3px solid #68ad8b;padding-left:12px;color:#567965}
+.cmv-in-accounts main{padding:0 12px 12px}
+.cmv-in-accounts :is(.banner,.intro,nav,footer,.filters label:has(#company),.filters .check,.filters .basis){display:none}
+.cmv-in-accounts .filters{margin:0 0 12px;padding:10px 14px}
 
 .banner.real{background:#edf5ef;color:#4e7560;border-color:#d9e8dd}.banner.real .btn{color:#167650}
 

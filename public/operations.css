@@ -26,6 +26,16 @@
 .ops-panel{margin-bottom:18px}
 .ops-actions{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
 .ops-actions .primary,.ops-actions .secondary{padding:8px 10px}
+.cash-entry-actions,.ops-kind-list{display:grid;gap:8px}
+.cash-entry-actions{justify-items:end}
+.cash-entry-actions .secondary{padding:7px 10px}
+.ops-kind-list{grid-template-columns:repeat(2,minmax(0,1fr))}
+.ops-kind-list button{text-align:left;min-height:68px;padding:10px 12px}
+.ops-kind-list small{margin-top:4px;line-height:1.35}
+#ops-cmv{width:min(880px,94vw);max-height:92dvh;padding:20px 16px 12px}
+#ops-cmv .card-heading{padding:0 10px;margin-bottom:10px;align-items:start}
+#ops-cmv-company{margin:0}
+#ops-cmv-frame{display:block;width:100%;height:min(67dvh,640px);border:0}
 #operations-area td small{margin-top:5px}
 .ops-pill{display:inline-block;border-radius:99px;padding:5px 8px;font-size:11px;color:#4c6052;background:#e9efe9}
 .ops-pill.paid{color:#126440;background:#def2e7}
@@ -93,6 +103,8 @@ body:has(.analytics-banner:not([hidden])) #toast{top:16px;bottom:auto;z-index:21
  .history td button{padding:5px 6px 5px 0}
 }
 @media(max-width:420px){
+ .ops-kind-list{grid-template-columns:1fr}
+ .cash-entry-actions{width:100%;justify-items:stretch}
  .preview-mode .stats{grid-template-columns:1fr}
  .stats article{padding-block:12px}
  .ops-metrics article{padding:12px}

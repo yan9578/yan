@@ -15,6 +15,13 @@ const statuses = {pending:'Pendente',partial:'Parcial',paid:'Quitada',late:'Atra
 const categories = Object.keys(types).map(id=>M.map[id]).filter(Boolean);
 const categoryOptions = categories.map(c=>option(c.id,c.name+(c.group==='outside'?' · Patrimonial':''))).join('');
 const methodOptions = methods.map(m=>option(m,m)).join('');
+const operationKinds = {
+ sale:{label:'Venda',description:'Receita de produtos ou serviços.',category:'sales',allows:id=>['sales','services'].includes(id)},
+ purchase:{label:'Compra de estoque',description:'Mercadorias para revenda e pagamentos ao fornecedor.',category:'inventory',allows:id=>id==='inventory'},
+ expense:{label:'Despesa',description:'Aluguel, salários e outros gastos do negócio.',category:'',allows:id=>types[id]==='expense'&&M.map[id].group!=='outside'},
+ cmv:{label:'Ajuste de resultado (CMV)',description:'Apure o custo das mercadorias vendidas para a DRE.'},
+ other:{label:'Outras operações',description:'Aportes, empréstimos e demais categorias.'}
+};
 const auditNames = {'save-operation':'Operação salva',settle:'Baixa registrada',reverse:'Baixa estornada',cancel:'Operação cancelada',
  'save-account':'Conta ajustada','save-category':'Categoria salva','delete-category':'Categoria excluída',preferences:'Alertas configurados',transfer:'Transferência registrada','reverse-transfer':'Transferência estornada'};
 
@@ -93,11 +100,16 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
    settings:['Configurações','Ajuste contas, categorias e preferências da empresa.']
  };
  function header() {
-   const [title,description] = sections[area];
+   const [title,description] = areaDetails(area);
    const companies = businesses.companies();
    const selector = '<label class="ops-company">Empresa<select id="ops-company">'+companies.map(c=>option(c.id,c.name)).join('')+'</select></label>';
-   const action = area==='operations'&&validCompany()?'<button class="primary" data-action="new-operation">＋ Nova operação</button>':'';
+   const action = area==='operations'&&validCompany()?'<button class="primary" data-action="new-operation">＋ '+(cmvPreview?'Registrar operação':'Nova operação')+'</button>':'';
    return '<div class="heading ops-heading"><div><h1>'+title+'</h1><p>'+description+'</p></div>'+action+'</div>'+selector;
+ }
+ function areaDetails(next) {
+   return cmvPreview&&next==='operations'
+     ?['Contas','Cadastre a operação uma vez. Registre a baixa quando o pagamento ou recebimento acontecer.']
+     :sections[next];
  }
  function opportunityCards() {
    const today=isoDay();
@@ -157,7 +169,12 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
      '</tr></thead><tbody>'+rows.join('')+'</tbody></table></div>';
  }
  function operationsPage() {
-   return opportunityCards()+'<article><h2>Operações da empresa</h2>'+filterOptions()+'<div id="ops-list">'+operationList()+'</div></article>';
+   const forecast=cmvPreview?project(state(),companyId(),companyRows(),isoDay(),15):null;
+   const cashPreview=forecast?'<article class="ops-panel"><div class="card-heading ops-cash-preview"><div>'+
+     '<h2>Saldo de caixa hoje</h2><strong class="financial-value">'+displayAmount(forecast.opening)+'</strong>'+
+     (forecast.shortage?'<p class="ops-warning">Possível falta de caixa em '+displayDay(forecast.shortage)+'.</p>':'')+
+     '</div><button class="secondary" data-action="cash-forecast">Ver projeção de caixa</button></div></article>':'';
+   return cashPreview+opportunityCards()+'<article><h2>Operações da empresa</h2>'+filterOptions()+'<div id="ops-list">'+operationList()+'</div></article>';
  }
  function agendaPage() {
    const today=isoDay(), forecast=project(state(),companyId(),companyRows(),today,range);
@@ -224,7 +241,8 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
  function draw() {
    if (!ready||!area||panel.hidden) return;
    panel.innerHTML=header()+(validCompany()?({operations:operationsPage,agenda:agendaPage,settings:settingsPage}[area])():
-     '<article><p>Selecione uma empresa cadastrada ou abra o Fluxo de caixa para cadastrar uma.</p></article>');
+     (cmvPreview?'<article><p>Selecione uma empresa ou cadastre uma para registrar operações.</p><button class="secondary" data-action="new-company">Cadastrar empresa</button></article>':
+      '<article><p>Selecione uma empresa cadastrada ou abra o Fluxo de caixa para cadastrar uma.</p></article>'));
    $('ops-company').value=companyId()||'';
    for(const key of ['from','to','type','status','category'])if($('ops-'+key))$('ops-'+key).value=filter[key];
    const form=$('ops-preferences');
@@ -236,7 +254,7 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
  async function openArea(next) {
    if (area!==next)filter={from:'',to:'',status:'',category:'',type:''};
    area=next;
-   activate(next,sections[next][0]);
+   activate(next,areaDetails(next)[0]);
    draw();
    try{
      if(await refresh()&&area===next) {
@@ -268,9 +286,30 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
  function moneyField(name,label,value='') {
    return field(name,label,'text',value,'inputmode="decimal" placeholder="0,00"');
  }
- function newOperation(operation) {
+ function selectOperationKind() {
+   if(!validCompany())return;
+   dialog('Registrar operação','<div class="ops-kind-list">'+Object.entries(operationKinds).map(([id,kind])=>
+     '<button type="button" class="secondary" data-action="operation-kind" data-id="'+id+'">'+
+     '<strong>'+kind.label+'</strong><small>'+kind.description+'</small></button>').join('')+'</div>');
+ }
+ function openCmv() {
+   if(!cmvPreview||!validCompany())return;
+   $('ops-dialog').close();
+   $('ops-cmv-company').textContent=activeCompany().name;
+   const frame=$('ops-cmv-frame');
+   frame.dataset.company=companyId();
+   frame.src='/dre.html';
+   $('ops-cmv').showModal();
+ }
+ $('ops-cmv-close').onclick=()=>$('ops-cmv').close();
+ $('ops-cmv').addEventListener('close',()=>{
+   $('ops-cmv-frame').removeAttribute('src');
+   panel.querySelector('[data-action="new-operation"]')?.focus();
+ });
+ function newOperation(operation, kind) {
    const revision=book.revision, id=operation?.id||crypto.randomUUID();
-   const allowed=id=>!cmvPreview?id!=='serviceCost':id!=='cost'||operation?.category==='cost';
+   const allowed=id=>(!cmvPreview?id!=='serviceCost':id!=='cost'||operation?.category==='cost')&&
+     (!kind?.allows||kind.allows(id));
    const standard=categories.filter(c=>allowed(c.id)).map(c=>option(c.id,c.name+(c.group==='outside'&&c.id!=='inventory'?' · Patrimonial':''))).join('');
    const custom = profile().categories.filter(c=>allowed(c.category)).map(c=>option(c.id,c.name+' · '+M.map[c.category].name)).join('');
    const purchase=cmvPreview?'<div id="purchase-fields" hidden><label>Referência da compra (opcional)<input name="purchaseReference" maxlength="80" placeholder="Ex.: fornecedor e número da nota" value="'+esc(operation?.purchaseReference)+'"></label>'+
@@ -278,7 +317,7 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
     '<fieldset id="purchase-payment" hidden disabled><legend>Pagamento realizado</legend><div class="form-grid">'+
     field('paidDate','Data efetiva de pagamento','date',isoDay(),'max="'+isoDay()+'"')+
     select('paidAccount','Conta financeira',accountOptions())+select('paidMethod','Forma de pagamento',methodOptions)+'</div></fieldset>':'')+'</div>':'';
-   dialog(operation?'Editar operação':'Nova operação',
+   dialog(operation?'Editar operação':kind?.allows?kind.label:'Nova operação',
      field('description','Descrição','text',operation?.description,'maxlength="120"')+
      select('category','Categoria',option('','Selecione')+standard+(custom?'<optgroup label="Personalizadas">'+custom+'</optgroup>':''))+
      '<p class="hint" id="ops-category-hint">Escolha a categoria para verificar o efeito na DRE.</p>'+
@@ -290,9 +329,12 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
        const settlement=!operation&&purchaseMode==='paid'&&paidDate?
         {paymentId:crypto.randomUUID(),date:paidDate,account:paidAccount,method:paidMethod}:undefined;
        await run('save-operation',{...values,id,amount:cents(values.amount),settlement},revision);
+       if(cmvPreview&&!operation)return settlement
+         ?'Compra salva. O pagamento já aparece no fluxo de caixa.'
+         :'Operação salva. Registre a baixa quando o dinheiro entrar ou sair.';
      });
    const form=$('ops-form');
-   form.elements.category.value=operation?.categoryId||'';
+   form.elements.category.value=operation?.categoryId||kind?.category||'';
    const hint=()=>{
      const chosen=profile().categories.find(c=>c.id===form.elements.category.value)?.category||form.elements.category.value;
      const isPurchase=cmvPreview&&chosen==='inventory';
@@ -319,8 +361,14 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
      '<p>'+esc(operation.description)+' · Em aberto: <strong>'+displayAmount(remaining(operation))+'</strong></p>'+
      '<div class="form-grid">'+moneyField('amount','Valor da baixa (R$)',fieldAmount(remaining(operation)))+
      field('date','Data efetiva','date',isoDay(),'max="'+isoDay()+'"')+select('account','Conta financeira',accountOptions())+
-     select('method','Forma de pagamento',methodOptions)+'</div>',
-     data=>run('settle',{...data,id:operation.id,paymentId,amount:cents(data.amount)},revision),'Registrar baixa');
+     select('method','Forma de pagamento',methodOptions)+'</div>'+
+     (cmvPreview?'<p class="hint">Informe o dia em que o dinheiro entrou ou saiu. Ao salvar, o fluxo de caixa será atualizado.</p>':''),
+     async data=>{
+       const amount=cents(data.amount);
+       await run('settle',{...data,id:operation.id,paymentId,amount},revision);
+       if(cmvPreview)return money(amount)+(operation.type==='income'?' recebidos em ':' pagos em ')+dayLabel(data.date)+
+         '. O fluxo de caixa já foi atualizado.';
+     },'Registrar baixa');
  }
  function details(operation) {
    const name=id=>profile().accounts.find(a=>a.id===id)?.name||id;
@@ -396,7 +444,15 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
    const operation=byId(id);
    try {
      switch(action){
-       case 'new-operation':newOperation();break;
+       case 'new-operation':
+         if(cmvPreview)selectOperationKind();else newOperation();
+         break;
+       case 'operation-kind':
+         if(!cmvPreview||!validCompany())return;
+         if(id==='cmv')openCmv();else newOperation(undefined,operationKinds[id]);
+         break;
+       case 'cash-forecast':await openArea('agenda');break;
+       case 'new-company':$('cash-company-new').click();break;
        case 'edit-operation':newOperation(operation);break;
        case 'settle':settlement(operation);break;
        case 'details':details(operation);break;
@@ -461,7 +517,7 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
    catch(error){$('ops-error').textContent=error.message;}
    finally{$('ops-submit').disabled=false;}
  };
- return {load,refresh,openArea,repaint:draw,pending,enabled:()=>enabled,period:()=>preferences.period,
+ return {load,refresh,openArea,repaint:draw,pending,selectOperationKind,enabled:()=>enabled,period:()=>preferences.period,
    cash:()=>cashOperations(state()), dre:document=>dreOperations(state(),document,cmvPreview),
    cmvEnabled:()=>cmvPreview, getBook:()=>book, isSaving:()=>busy,
    acceptBook:saved=>{book=saved;},

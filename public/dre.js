@@ -55,8 +55,19 @@ window.caixaCompanyDeleted=saved=>{
 window.advanceDreRevision=(previous,next)=>{if(revision===previous)revision=next;};
 const inventoryBridge=window.parent===window?null:window.parent.caixaInventory;
 const hasInventory=()=>db.mode==='real'&&inventoryBridge?.enabled()===true;
+const previewFrame=hasInventory()?window.frameElement:null;
+const selectedCompany=previewFrame?.dataset.company;
+if(data().companies.some(item=>item.id===selectedCompany))company=selectedCompany;
+const accountsFrame=previewFrame?.id==='ops-cmv-frame'?previewFrame:null;
+if(accountsFrame){
+  document.body.classList.add('cmv-in-accounts');
+  view='inventory-view';
+  document.addEventListener('keydown',event=>{
+    if(event.key==='Escape'&&!document.querySelector('dialog[open]'))accountsFrame.closest('dialog')?.close();
+  });
+}
 const inventory=inventoryBridge?.enabled()?createInventoryView({bridge:inventoryBridge,
-  scope:()=>({company,month,original:data()}),rerender:render,toast,ask}):null;
+  scope:()=>({company,month,original:data()}),rerender:render,toast,ask,compact:!!accountsFrame}):null;
 const pending=(id,period,accumulated)=>hasInventory()?
   pendingClosures(inventoryBridge.getBook().document,data(),id,period,accumulated):[];
 const reportBook=()=>{
@@ -161,6 +172,7 @@ function render(){
   document.querySelector('.banner').classList.toggle('real',db.mode==='real');
   $('mode').textContent=db.mode==='demo'
     ?'Usar meus dados →':'Ver demonstração →';
+  $('add').textContent=hasInventory()?'＋ Lançamento avulso':'＋ Lançamento';
 
   const empty=!data().companies.length;
   $('inventory-tab').hidden=!hasInventory();
