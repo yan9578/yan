@@ -4,6 +4,7 @@ import {M} from './dre-model.js';
 import {cents,methods} from './finance.js';
 import {addDays,cashBalances,cashOperations,categoryUsage,currentProfile,defaultAccount,dreOperations,emptyOperations,isoDay,money,paid,project,remaining,situation,types} from './operations-model.js';
 import {applyTheme, preferenceKey} from './theme.js';
+import {legacyDecision,purchaseName} from './inventory-model.js';
 
 const $ = id => document.getElementById(id);
 const esc = value => String(value??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -17,9 +18,10 @@ const methodOptions = methods.map(m=>option(m,m)).join('');
 const auditNames = {'save-operation':'Operação salva',settle:'Baixa registrada',reverse:'Baixa estornada',cancel:'Operação cancelada',
  'save-account':'Conta ajustada','save-category':'Categoria salva','delete-category':'Categoria excluída',preferences:'Alertas configurados',transfer:'Transferência registrada','reverse-transfer':'Transferência estornada'};
 
-export function createOperations({businesses,manualRows,renderCash,activate,toast}) {
+export function createOperations({businesses,manualRows,renderCash,activate,toast,onSave}) {
  let book = {revision:0,document:emptyOperations()};
  let enabled = false;
+ let cmvPreview = false;
  let ready = false;
  let busy = false;
  let area = '';
@@ -48,8 +50,9 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
    try { preferences={...preferences,...JSON.parse(localStorage.getItem(preferenceKey)||'{}')}; } catch {}
    applyTheme(preferences.theme);
  }
- async function load(isEnabled,isPreview=false) {
+ async function load(isEnabled,isPreview=false,inventoryPreview=false) {
    enabled=!!isEnabled;
+   cmvPreview=!!inventoryPreview;
    if (!enabled) return;
    book=await api('operations');
    ready=true;
@@ -70,6 +73,7 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
    busy=true;
    try {
      book=await api('operations','POST',{revision:expectedRevision,command:{action,company:companyId(),...data}});
+     onSave(expectedRevision,book.revision);
    } catch(error) {
      if(error.status===409) {
        book=await api('operations');
@@ -266,25 +270,47 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
  }
  function newOperation(operation) {
    const revision=book.revision, id=operation?.id||crypto.randomUUID();
-   const custom = profile().categories.map(c=>option(c.id,c.name+' · '+M.map[c.category].name)).join('');
+   const allowed=id=>!cmvPreview?id!=='serviceCost':id!=='cost'||operation?.category==='cost';
+   const standard=categories.filter(c=>allowed(c.id)).map(c=>option(c.id,c.name+(c.group==='outside'&&c.id!=='inventory'?' · Patrimonial':''))).join('');
+   const custom = profile().categories.filter(c=>allowed(c.category)).map(c=>option(c.id,c.name+' · '+M.map[c.category].name)).join('');
+   const purchase=cmvPreview?'<div id="purchase-fields" hidden><label>Referência da compra (opcional)<input name="purchaseReference" maxlength="80" placeholder="Ex.: fornecedor e número da nota" value="'+esc(operation?.purchaseReference)+'"></label>'+
+    (!operation?'<label>Condição da compra<select name="purchaseMode"><option value="term">A prazo</option><option value="paid">À vista · já paga</option></select></label>'+
+    '<fieldset id="purchase-payment" hidden disabled><legend>Pagamento realizado</legend><div class="form-grid">'+
+    field('paidDate','Data efetiva de pagamento','date',isoDay(),'max="'+isoDay()+'"')+
+    select('paidAccount','Conta financeira',accountOptions())+select('paidMethod','Forma de pagamento',methodOptions)+'</div></fieldset>':'')+'</div>':'';
    dialog(operation?'Editar operação':'Nova operação',
      field('description','Descrição','text',operation?.description,'maxlength="120"')+
-     select('category','Categoria',option('','Selecione')+categoryOptions+(custom?'<optgroup label="Personalizadas">'+custom+'</optgroup>':''))+
+     select('category','Categoria',option('','Selecione')+standard+(custom?'<optgroup label="Personalizadas">'+custom+'</optgroup>':''))+
      '<p class="hint" id="ops-category-hint">Escolha a categoria para verificar o efeito na DRE.</p>'+
      '<div class="form-grid">'+moneyField('amount','Valor (R$)',operation?fieldAmount(operation.amount):'')+
-     field('date','Data da operação','date',operation?.date||isoDay(),'max="'+isoDay()+'"')+
-     field('due','Vencimento','date',operation?.due||isoDay())+'</div><p class="hint">Registre os recebimentos ou pagamentos na operação depois de salvar.</p>',
-     async values=>run('save-operation',{...values,id,amount:cents(values.amount)},revision));
+     '<label><span id="ops-operation-date-label">Data da operação</span><input required name="date" type="date" value="'+esc(operation?.date||isoDay())+'" max="'+isoDay()+'"></label>'+
+     field('due','Vencimento','date',operation?.due||isoDay())+'</div>'+purchase+
+     '<p class="hint" id="ops-settlement-hint">Registre os recebimentos ou pagamentos na operação depois de salvar.</p>',
+     async ({purchaseMode,paidDate,paidAccount,paidMethod,...values})=>{
+       const settlement=!operation&&purchaseMode==='paid'&&paidDate?
+        {paymentId:crypto.randomUUID(),date:paidDate,account:paidAccount,method:paidMethod}:undefined;
+       await run('save-operation',{...values,id,amount:cents(values.amount),settlement},revision);
+     });
    const form=$('ops-form');
    form.elements.category.value=operation?.categoryId||'';
    const hint=()=>{
      const chosen=profile().categories.find(c=>c.id===form.elements.category.value)?.category||form.elements.category.value;
-     if(!M.map[chosen])return;
+     const isPurchase=cmvPreview&&chosen==='inventory';
+     const extra=$('purchase-fields'),payment=$('purchase-payment');
+     if(extra)extra.hidden=!isPurchase;
+     if(payment){
+       payment.hidden=payment.disabled=!isPurchase||form.elements.purchaseMode.value!=='paid';
+       if(!isPurchase)form.elements.purchaseMode.value='term';
+     }
+     $('ops-operation-date-label').textContent=isPurchase?'Data da aquisição':'Data da operação';
+     $('ops-settlement-hint').textContent=isPurchase?'A compra entra no mês da aquisição. A baixa é registrada apenas quando o pagamento acontece.':'Registre os recebimentos ou pagamentos na operação depois de salvar.';
+     if(!M.map[chosen]){$('ops-category-hint').textContent='Escolha a categoria para verificar o efeito na DRE.';return;}
      const direction=types[chosen]==='income'?'A receber':'A pagar';
      $('ops-category-hint').textContent=direction+(M.map[chosen].group==='outside'?' · Fora do resultado da DRE. ':' · Reconhecido na DRE na data da operação. ')+M.map[chosen].hint+
-       (chosen==='inventory'?' Lance na DRE apenas o custo das mercadorias efetivamente vendidas, quando apurado.':'');
+       (isPurchase?' O CMV será apurado no fechamento mensal.':'');
    };
    form.elements.category.onchange=hint;
+   if(form.elements.purchaseMode)form.elements.purchaseMode.onchange=hint;
    hint();
  }
  function settlement(operation) {
@@ -301,8 +327,9 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
    const entries=operation.payments.map(p=>'<li><div><strong class="financial-value">'+displayAmount(p.amount)+'</strong><small>'+
     displayDay(p.date)+' · '+esc(name(p.account))+' · '+esc(p.method)+(p.reversed?' · Estornada':'')+'</small></div>'+
     (!p.reversed?'<button type="button" class="secondary" data-action="reverse" data-id="'+esc(operation.id)+'" data-payment="'+esc(p.id)+'">Estornar</button>':'')+'</li>');
-   dialog(operation.description,'<p>'+esc(operation.categoryName)+' · '+statuses[situation(operation,isoDay())]+'</p>'+
-    '<dl class="ops-details"><div><dt>Competência</dt><dd>'+displayDay(operation.date)+'</dd></div><div><dt>Vencimento</dt><dd>'+displayDay(operation.due)+'</dd></div>'+
+   const inventory=cmvPreview&&(operation.category==='inventory'||legacyDecision(state(),'operation',operation)==='purchase');
+   dialog(operation.description,'<p>'+esc(inventory?purchaseName:operation.categoryName)+' · '+statuses[situation(operation,isoDay())]+'</p>'+
+    '<dl class="ops-details"><div><dt>'+(inventory?'Data da aquisição':'Competência')+'</dt><dd>'+displayDay(operation.date)+'</dd></div><div><dt>Vencimento</dt><dd>'+displayDay(operation.due)+'</dd></div>'+
     '<div><dt>Valor</dt><dd class="financial-value">'+displayAmount(operation.amount)+'</dd></div><div><dt>Em aberto</dt><dd class="financial-value">'+displayAmount(remaining(operation))+'</dd></div></dl>'+
     '<h3>Histórico de baixas</h3>'+(entries.length?'<ul class="ops-payments">'+entries.join('')+'</ul>':'<p>Nenhuma baixa registrada.</p>')+
     (!operation.cancelled?'<div class="ops-actions"><button type="button" class="secondary" data-action="edit-operation" data-id="'+esc(operation.id)+'">Editar operação</button>'+
@@ -435,7 +462,11 @@ export function createOperations({businesses,manualRows,renderCash,activate,toas
    finally{$('ops-submit').disabled=false;}
  };
  return {load,refresh,openArea,repaint:draw,pending,enabled:()=>enabled,period:()=>preferences.period,
-   cash:()=>cashOperations(state()), dre:document=>dreOperations(state(),document),
+   cash:()=>cashOperations(state()), dre:document=>dreOperations(state(),document,cmvPreview),
+   cmvEnabled:()=>cmvPreview, getBook:()=>book, isSaving:()=>busy,
+   acceptBook:saved=>{book=saved;},
+   advanceRevision:(previous,next)=>{if(book.revision===previous)book={...book,revision:next};},
+   saveInventory:(command,revision)=>run(command.action,command,revision),
    accounts:id=>currentProfile(state(),id).accounts,
    balances:(rows,from,to)=>cashBalances(state(),companyId(),rows,from,to),
    accountDefault:defaultAccount};

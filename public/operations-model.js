@@ -1,8 +1,9 @@
 import {M} from './dre-model.js';
 import {methods} from './finance.js';
+import {changeInventory,legacyDecision} from './inventory-model.js';
 
 export const types = Object.freeze({
-  sales: 'income', services: 'income', deductions: 'expense', cost: 'expense',
+  sales: 'income', services: 'income', deductions: 'expense', cost: 'expense', serviceCost: 'expense',
   personnel: 'expense', admin: 'expense', commercial: 'expense', structure: 'expense',
   otherExpense: 'expense', otherIncome: 'income', financialIncome: 'income',
   financialExpense: 'expense', taxes: 'expense', capital: 'income', loan: 'income',
@@ -42,15 +43,19 @@ export function cashOperations(state) {
   return state.operations.filter(o=>!o.cancelled).flatMap(o=>o.payments.filter(p=>!p.reversed).map(p=>({
     id:'baixa-'+p.id, company:o.company, type:o.type, account:p.account,
     date:p.date, saleDate:['sales','services'].includes(o.category)&&o.date<=p.date?o.date:'',
-    category:o.categoryName, description:o.description, amount:p.amount, method:p.method, linked:true
+    category:legacyDecision(state,'operation',o)==='purchase'?M.map.inventory.name:o.categoryName,
+    description:o.description, amount:p.amount, method:p.method, linked:true
   })));
 }
-export function dreOperations(state, book) {
+export function dreOperations(state, book, cmvPreview=false) {
   const ids = new Set(book.companies.map(c=>c.id));
-  return state.operations.filter(o=>!o.cancelled&&ids.has(o.company)).map(o=>({
-    id:'operacao-'+o.id, company:o.company, date:o.date, category:o.category,
-    description:o.description, amount:o.amount, linked:true
-  }));
+  return state.operations.filter(o=>!o.cancelled&&ids.has(o.company)).map(o=>{
+    const legacy=cmvPreview&&o.category==='cost';
+    const review=legacy?legacyDecision(state,'operation',o):null;
+    return {id:'operacao-'+o.id,company:o.company,date:o.date,
+      category:!legacy?o.category:review==='service'?'serviceCost':review==='purchase'?'inventory':'legacyStock',
+      description:o.description,amount:o.amount,linked:true,reviewManaged:legacy,reviewPending:legacy&&!review};
+  });
 }
 function accountMovements(rows, transfers, account) {
   return [
@@ -113,13 +118,25 @@ function idValue(value) {
   check(typeof value==='string'&&/^[a-zA-Z0-9-]{1,64}$/.test(value),'Identificador inválido.');
   return value;
 }
-export function applyCommand(state, command, {companies, today, now}) {
+export function applyCommand(state, command, {companies, entries=[], today, now, cmvPreview=false}) {
   check(command&&typeof command==='object','Operação inválida.');
   const {action, company, id} = command;
   check(companies.some(c=>c.id===company),'Selecione uma empresa cadastrada.');
   const next = structuredClone(state);
   const profile = currentProfile(next,company);
   const findAccount = id => profile.accounts.find(a=>a.id===id);
+  const settle=(operation,payment)=>{
+    check(operation&&remaining(operation)>0,'Esta conta não tem saldo em aberto.');
+    idValue(payment.paymentId);
+    check(!next.operations.some(o=>o.payments.some(p=>p.id===payment.paymentId)),'Esta baixa já foi registrada.');
+    const value=amount(payment.amount);
+    check(value<=remaining(operation),'O valor excede o saldo em aberto.');
+    const day=dateValue(payment.date,'Informe uma data de pagamento válida, até hoje.',today);
+    check(findAccount(payment.account)&&methods.includes(payment.method),'Selecione a conta e a forma de pagamento.');
+    check(operation.payments.length<1000,'Limite de baixas atingido.');
+    operation.payments.push({id:payment.paymentId,amount:value,date:day,account:payment.account,method:payment.method});
+    return {payment:payment.paymentId,amount:value};
+  };
   let operation = next.operations.find(o=>o.id===id&&o.company===company);
   let details;
   switch (action) {
@@ -135,6 +152,7 @@ export function applyCommand(state, command, {companies, today, now}) {
       const custom = sameCategory?{category:operation.category,name:operation.categoryName}:profile.categories.find(c=>c.id===command.category);
       const category = custom?.category||command.category;
       check(Object.hasOwn(types,category)&&Object.hasOwn(M.map,category),'Selecione uma categoria válida.');
+      check(!cmvPreview||category!=='cost'||operation?.category==='cost','Use a categoria de revenda ou de custos diretos de serviços.');
       const type = types[category];
       const description = textValue(command.description,120,'Informe uma descrição de até 120 caracteres.');
       const payments = operation?.payments||[];
@@ -144,21 +162,24 @@ export function applyCommand(state, command, {companies, today, now}) {
       details = operation ? {before:{...operation,payments:undefined}} : undefined;
       const update = {id,company,amount:value,date,due,category,categoryId:command.category,
         categoryName:custom?.name||M.map[category].name,type,description,payments};
+      if(cmvPreview&&category==='inventory'){
+        const ref=typeof command.purchaseReference==='string'?command.purchaseReference.trim():'';
+        check(ref.length<=80,'A referência da compra deve ter até 80 caracteres.');
+        check(!ref||!next.operations.some(o=>o.id!==id&&o.company===company&&!o.cancelled&&
+          o.purchaseReference?.toLocaleLowerCase('pt-BR')===ref.toLocaleLowerCase('pt-BR')),
+          'Já existe uma compra ativa com esta referência nesta empresa.');
+        update.purchaseReference=ref;
+      }
+      if(command.settlement){
+        check(cmvPreview&&!operation&&category==='inventory','O pagamento à vista só pode ser incluído ao cadastrar uma compra para revenda.');
+        details=settle(update,{...command.settlement,amount:value});
+      }
       if (operation) Object.assign(operation,update);
       else next.operations.push(update);
       break;
     }
     case 'settle': {
-      check(operation&&remaining(operation)>0,'Esta conta não tem saldo em aberto.');
-      idValue(command.paymentId);
-      check(!next.operations.some(o=>o.payments.some(p=>p.id===command.paymentId)),'Esta baixa já foi registrada.');
-      const value = amount(command.amount);
-      check(value<=remaining(operation),'O valor excede o saldo em aberto.');
-      const day = dateValue(command.date,'Informe uma data de pagamento válida, até hoje.',today);
-      check(findAccount(command.account)&&methods.includes(command.method),'Selecione a conta e a forma de pagamento.');
-      check(operation.payments.length<1000,'Limite de baixas atingido.');
-      operation.payments.push({id:command.paymentId, amount:value, date:day, account:command.account, method:command.method});
-      details = {payment:command.paymentId, amount:value};
+      details=settle(operation,command);
       break;
     }
     case 'reverse': {
@@ -246,6 +267,13 @@ export function applyCommand(state, command, {companies, today, now}) {
       next.transfers.splice(index,1);
       break;
     }
+    case 'save-cmv':
+    case 'save-stock-adjustment':
+    case 'delete-stock-adjustment':
+    case 'review-stock-legacy':
+      check(cmvPreview,'O fechamento de CMV está disponível na prévia local.');
+      details=changeInventory(next,command,{entries,companies,today,now});
+      break;
     default:
       throw Error('Ação desconhecida.');
   }

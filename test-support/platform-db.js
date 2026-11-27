@@ -6,7 +6,7 @@ export async function platformDatabase(){
  create table auth.users(id uuid primary key,email text unique,created_at timestamptz not null default now(),email_confirmed_at timestamptz);
  create function auth.uid() returns uuid language sql stable as $$ select nullif(current_setting('request.jwt.claim.sub',true),'')::uuid $$;
  grant usage on schema auth to anon,authenticated,service_role;grant execute on function auth.uid() to anon,authenticated,service_role;`);
- for(const name of ['schema.sql','002-dre.sql','003-public-platform.sql','005-data-validation-backups.sql','006-integrated-operations.sql'])await db.exec(await readFile(new URL('../cloud/'+name,import.meta.url),'utf8'));
+ for(const name of ['schema.sql','002-dre.sql','003-public-platform.sql','005-data-validation-backups.sql','006-integrated-operations.sql','007-inventory-and-company-deletion.sql'])await db.exec(await readFile(new URL('../cloud/'+name,import.meta.url),'utf8'));
  let queue=Promise.resolve();
  async function as(role,id,fn){
   const task=queue.then(async()=>{await db.exec('BEGIN');try{await db.query("select set_config('request.jwt.claim.sub',$1,true)",[id||'']);await db.exec('SET LOCAL ROLE '+role);const result=await fn(db);await db.exec('COMMIT');return result;}catch(e){await db.exec('ROLLBACK');throw e;}});

@@ -26,6 +26,7 @@ export function createCashCompanies({getRecords,persist,render,toast,isSaving}){
   const c=current();$('cash-company-name').textContent=c?.name||'Nenhuma empresa selecionada';
   $('cash-company-status').textContent=c?.legacy?'Seus lançamentos anteriores foram preservados. Vincule-os à empresa correta abaixo.':c?.archived?'O cadastro foi removido da DRE. O histórico deste caixa continua preservado.':c?'Exibindo somente o caixa de '+c.name+'. O cadastro da empresa é compartilhado com a DRE.':'Cadastre uma empresa ou use uma empresa já cadastrada na DRE.';
   $('cash-company-edit').disabled=!c||c.legacy||c.archived||busy||isSaving();
+  $('cash-company-delete').disabled=!c?.id||busy||isSaving();
   $('cash-company-new').disabled=!ready||busy||isSaving();$('cash-company-refresh').disabled=busy||isSaving();
   $('new').disabled=!c||c.legacy||c.archived||busy||isSaving();$('demo').disabled=$('new').disabled;
   $('cash-legacy').hidden=!c?.legacy;
@@ -75,5 +76,6 @@ export function createCashCompanies({getRecords,persist,render,toast,isSaving}){
   if(await persist(getRecords().map(r=>recordCompany(r)?r:withCompany(r,c)))){choose(id);toast('Lançamentos vinculados à empresa selecionada.');}
  };
  return {load,paint,fillRecord,attach,current,select:choose,companies:()=>dreDocument.companies,records:()=>companyRecords(getRecords(),selected),get busy(){return busy;},
-  acceptDre(saved){accept(saved);render();}};
+  acceptDre(saved){accept(saved);render();},
+  advanceDreRevision(previous,next){if(revision===previous)revision=next;}};
 }

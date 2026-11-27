@@ -142,3 +142,15 @@ body:has(.analytics-banner:not([hidden])) #toast{top:16px;bottom:auto;z-index:21
 [data-theme="dark"] :is(.ops-calendar-item.expense,.ops-pill.late,.stat-icon.red) {background:#462d28;color:var(--dark-negative)}
 [data-theme="dark"] :is(.legend span:first-child) {color:var(--dark-positive)}
 [data-theme="dark"] :is(.legend span:last-child) {color:var(--dark-negative)}
+
+#delete-company-name {color:inherit;font-weight:600;overflow-wrap:anywhere}
+#delete-company-warning {background:#fff0eb;color:#81392e;border-radius:8px;padding:12px}
+#delete-company-error {color:#a43a2f}
+#delete-company-error:empty {display:none}
+.delete-company-actions {display:flex;flex-wrap:wrap;justify-content:flex-end;gap:8px}
+.delete-company-actions button {font-size:12px}
+#delete-company-confirm {background:#ab3028;color:white;border-color:#ab3028;font-weight:600}
+#delete-company-confirm:hover:not(:disabled) {background:#8e2420}
+#delete-company-confirm:disabled {cursor:not-allowed}
+[data-theme="dark"] #delete-company-warning {background:#402823;color:var(--dark-negative)}
+[data-theme="dark"] #delete-company-error {color:var(--dark-negative)}

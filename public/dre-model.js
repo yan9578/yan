@@ -13,6 +13,12 @@ export const M=(()=>{
       'Valores que reduzem a receita. Lance tributos apurados sem duplicá-los em outras categorias.'],
     ['cost','Custo das vendas e serviços','cost',
       'Custo dos itens vendidos ou dos serviços prestados. Compras ainda em estoque ficam fora da DRE.'],
+    ['serviceCost','Custos diretos de serviços','cost',
+      'Custos diretamente ligados à prestação de serviços. Use Contas para compras de mercadorias.'],
+    ['monthlyCmv','CMV apurado no fechamento','cost',
+      'Custo das mercadorias vendidas calculado pelo fechamento mensal.'],
+    ['legacyStock','Registro histórico de estoque ou custo','outside',
+      'Registro preservado para conferência no fechamento mensal.'],
     ['personnel','Pessoal e encargos','opex',
       'Salários, pró-labore e encargos administrativos. Custos diretos já classificados não devem ser duplicados.'],
     ['admin','Despesas administrativas','opex',
@@ -41,8 +47,8 @@ export const M=(()=>{
       'Devolução do principal; somente juros e encargos afetam a DRE.'],
     ['assets','Compra de ativo','outside',
       'Compra de equipamento ou outro ativo; depreciação entra separadamente.'],
-    ['inventory','Compra de estoque','outside',
-      'O custo entra na DRE quando os itens são vendidos.'],
+    ['inventory','Compra de mercadorias para revenda','outside',
+      'A aquisição alimenta as compras do mês. O pagamento afeta o caixa na data da baixa.'],
     ['distribution','Distribuição de lucros','outside',
       'Retirada pelos sócios; não é despesa operacional.']
   ].map(([id,name,group,hint])=>({id,name,group,hint}));
@@ -131,7 +137,7 @@ export const M=(()=>{
     return {
       ...t,detail,netRevenue,grossProfit,operating,financial,
       beforeTaxes,profit,expenses,
-      margin:netRevenue>0?profit/netRevenue*100:null,count,outsideCount
+      margin:netRevenue>0?profit/netRevenue*100:null,count,outsideCount,inventoryReporting:d.inventoryReporting===true
     };
   }
 
@@ -153,7 +159,10 @@ export const M=(()=>{
     add('Receita bruta',r.gross,'section','gross');
     add('Deduções da receita',-r.deductions);
     add('Receita líquida',r.netRevenue,'subtotal');
-    add('Custo das vendas e serviços',-r.cost);
+    if(r.inventoryReporting){
+      add('CMV apurado no fechamento',-r.detail.monthlyCmv);
+      add('Custos diretos de serviços',-r.detail.serviceCost);
+    }else add('Custo das vendas e serviços',-r.cost);
     add('Lucro bruto',r.grossProfit,'subtotal');
     add('Outras receitas operacionais',r.otherIncome);
     add('Despesas operacionais',-r.opex,'section','opex');

@@ -4,6 +4,7 @@ import {createPublicApi} from './public-api.js';
 import {serverConfig} from './config.js';
 export const staticFiles=['index.html','app.js','api.js','style.css','auth.css','auth.js','drafts.js','account.js','admin.js','telemetry.js','privacy.js','privacidade.html','finance.js','cash-model.js','cash-companies.js','dre.html','dre.css','dre.js','dre-model.js'];
 staticFiles.push('operations-model.js','operations-ui.js','operations.css','theme.css','theme.js');
+staticFiles.push('inventory-model.js','inventory-ui.js');
 export function createPublicServer(config=serverConfig(),options={}){
  const handle=createPublicApi(config,options);
  return createServer(async(req,res)=>{

@@ -1,4 +1,6 @@
 import {M} from './dre-model.js';
+import {pendingClosures,projectInventoryReport} from './inventory-model.js';
+import {createInventoryView} from './inventory-ui.js';
 
 'use strict';
 
@@ -44,9 +46,23 @@ try{
 $('dre-main').setAttribute('aria-busy','false');
 
 const data=()=>db[db.mode];
+const canDeleteCompany=()=>db.mode==='real'&&typeof window.parent.caixaDeleteCompany==='function';
+window.caixaCompanyDeleted=saved=>{
+  db.real=saved.document;
+  revision=saved.revision;
+  render();
+};
+window.advanceDreRevision=(previous,next)=>{if(revision===previous)revision=next;};
+const inventoryBridge=window.parent===window?null:window.parent.caixaInventory;
+const hasInventory=()=>db.mode==='real'&&inventoryBridge?.enabled()===true;
+const inventory=inventoryBridge?.enabled()?createInventoryView({bridge:inventoryBridge,
+  scope:()=>({company,month,original:data()}),rerender:render,toast,ask}):null;
+const pending=(id,period,accumulated)=>hasInventory()?
+  pendingClosures(inventoryBridge.getBook().document,data(),id,period,accumulated):[];
 const reportBook=()=>{
   const book=data();
   const linked=db.mode==='real'?window.parent.caixaLinkedDre?.(book)||[]:[];
+  if(hasInventory())return projectInventoryReport(inventoryBridge.getBook().document,book,linked);
   return {...book,entries:[...book.entries,...linked]};
 };
 const name=id=>data().companies.find(c=>c.id===id)?.name||'Empresa';
@@ -117,6 +133,7 @@ $('confirm').onclick=()=>{
 
 function show(v){
   view=v;
+  if(v==='inventory-view'&&company==='all'&&data().companies.length===1)company=data().companies[0].id;
   page=1;
   render();
 }
@@ -146,11 +163,12 @@ function render(){
     ?'Usar meus dados →':'Ver demonstração →';
 
   const empty=!data().companies.length;
+  $('inventory-tab').hidden=!hasInventory();
   $('empty').hidden=!empty;
-  $('cards').hidden=empty;
+  $('cards').hidden=empty||view==='inventory-view';
   $('csv').disabled=empty;
 
-  ['dashboard','dre-view','ledger-view','companies-view'].forEach(id=>{
+  ['dashboard','dre-view','inventory-view','ledger-view','companies-view'].forEach(id=>{
     $(id).hidden=id!==view||empty;
   });
 
@@ -162,17 +180,24 @@ function render(){
   const book=reportBook();
   const r=M.report(book,company,month,ytd);
   const old=M.report(book,company,previous(),ytd);
+  const unfinished=empty?[]:pending(company,month,ytd);
+  const earlier=empty?[]:pending(company,previous(),ytd);
+  const provisional=unfinished.length>0;
+  const status=$('inventory-report-status');
+  status.hidden=!provisional||view==='inventory-view';
+  status.textContent=provisional?'DRE provisória. Há fechamento de CMV pendente ou inconsistente no período. O resultado inclui somente o CMV apurado nos meses concluídos.':'';
+  inventory?.render();
 
   for(const [id,n]of [
     ['revenue',r.netRevenue],['expenses',r.expenses],['profit',r.profit]
   ])$(id).textContent=money(n);
 
-  $('profit').className=r.profit<0?'neg':'pos';
-  $('profit-label').textContent=r.profit<0?'Prejuízo líquido':'Lucro líquido';
+  $('profit').className='financial-value '+(r.profit<0?'neg':'pos');
+  $('profit-label').textContent=provisional?'Resultado provisório':r.profit<0?'Prejuízo líquido':'Lucro líquido';
   $('margin').textContent=pct(r.margin);
-  $('margin').className=r.margin!==null&&r.margin<0?'neg':'';
+  $('margin').className='financial-value '+(r.margin!==null&&r.margin<0?'neg':'');
 
-  $('insight').textContent=!r.count
+  $('insight').textContent=provisional?'Finalize o CMV do período antes de interpretar o resultado.':!r.count
     ?'Nenhum lançamento de resultado neste período. Inclua os dados antes de avaliar o lucro.'
     :r.profit<0
       ?'Os gastos superaram as receitas em '+money(-r.profit)+
@@ -189,18 +214,19 @@ function render(){
 
   $('portfolio').innerHTML=cs.map(c=>{
     const a=M.report(book,c.id,month,ytd);
+    const pendingCompany=(company==='all'?unfinished.some(x=>x.company===c.id):provisional);
     return '<tr><td><button class="link" data-company="'+esc(c.id)+'">'+
       esc(c.name)+'</button><small>'+esc(c.sector)+'</small></td>'+
       '<td class="num">'+money(a.netRevenue)+'</td>'+
       '<td class="num">'+money(a.expenses)+'</td>'+
       '<td class="num '+(a.profit<0?'neg':'pos')+'">'+money(a.profit)+
-      (a.count?'':'<small>Sem lançamentos</small>')+'</td>'+
+      (pendingCompany?'<small>Provisório</small>':a.count?'':'<small>Sem lançamentos</small>')+'</td>'+
       '<td>'+pct(a.margin)+'</td></tr>';
   }).join('');
 
   const series=Array.from({length:6},(_,i)=>{
     const m=M.shift(month,i-5);
-    return {m,r:M.report(book,company,m)};
+    return {m,r:M.report(book,company,m),provisional:pending(company,m,false).length>0};
   });
   const max=Math.max(
     1,...series.flatMap(x=>[x.r.netRevenue,x.r.expenses])
@@ -209,23 +235,24 @@ function render(){
   $('chart').innerHTML=series.map(x=>
     '<div class="column"><div class="bars" role="img" aria-label="'+
     esc(label(x.m)+': receita '+money(x.r.netRevenue)+
-      ', gastos '+money(x.r.expenses))+'">'+
+      ', gastos '+money(x.r.expenses)+(x.provisional?' · provisório':''))+'">'+
     '<div class="bar" title="'+esc(money(x.r.netRevenue))+
     '" style="height:'+Math.max(0,x.r.netRevenue/max*100)+'%"></div>'+
     '<div class="bar cost" title="'+esc(money(x.r.expenses))+
     '" style="height:'+x.r.expenses/max*100+'%"></div></div>'+
-    '<button data-month="'+x.m+'">'+
+    '<button data-month="'+x.m+'"'+(x.provisional?' title="Fechamento de CMV pendente"':'')+'>'+
     esc(new Date(+x.m.slice(0,4),+x.m.slice(5)-1,1)
-      .toLocaleDateString('pt-BR',{month:'short'}))+
+      .toLocaleDateString('pt-BR',{month:'short'}))+(x.provisional?'*':'')+
     '</button></div>'
   ).join('');
+  $('inventory-chart-note').hidden=!series.some(x=>x.provisional);
 
   $('report-title').textContent='DRE · '+scope();
   $('report-period').textContent=period()+' · BRL · Competência'+
-    (db.mode==='demo'?' · DADOS FICTÍCIOS':'');
+    (db.mode==='demo'?' · DADOS FICTÍCIOS':provisional?' · DRE PROVISÓRIA':'');
 
   $('heading-current').textContent=(ytd?'Acum. até ':'')+label(month);
-  $('heading-old').textContent=(ytd?'Acum. até ':'')+label(previous());
+  $('heading-old').textContent=(ytd?'Acum. até ':'')+label(previous())+(earlier.length?' · provisório':'');
 
   const rows=M.rows(r,$('details').checked);
   const before=M.rows(old,$('details').checked);
@@ -248,11 +275,11 @@ function render(){
     return '<article class="company-card"><h2>'+esc(c.name)+
       '</h2><p class="muted">'+esc(c.sector||'Setor não informado')+
       '</p><div class="result '+(a.profit<0?'neg':'pos')+'">'+
-      money(a.profit)+'</div><div class="actions">'+
+      money(a.profit)+'</div>'+(pending(c.id,month,ytd).length?'<p class="muted">Resultado provisório</p>':'')+'<div class="actions">'+
       '<button class="link" data-company="'+esc(c.id)+'">Ver DRE →</button>'+
       '<button class="link" data-edit-company="'+esc(c.id)+'">Editar</button>'+
       '<button class="link" data-delete-company="'+esc(c.id)+
-      '">Excluir</button></div></article>';
+      '">'+(canDeleteCompany()?'Excluir empresa':'Excluir')+'</button></div></article>';
   }).join('');
 }
 
@@ -276,7 +303,9 @@ function renderLedger(){
     (M.map[e.category].group==='outside'?' · FORA DA DRE':'')+
     '</small></td><td>'+esc(name(e.company))+'</td>'+
     '<td class="num">'+money(e.amount)+'</td><td><div class="actions">'+
-    (e.linked?'<span class="muted">Gerenciado em Contas</span>':
+    (e.cmvGenerated?'<span class="muted">Calculado no fechamento</span>':
+    e.reviewManaged?'<span class="muted">'+(e.reviewPending?'Pendente de revisão no fechamento':'Revisado no fechamento')+'</span>':
+    e.linked?'<span class="muted">Gerenciado em Contas</span>':
     '<button class="link" data-edit-entry="'+esc(e.id)+'">Editar</button>'+
     '<button class="link" data-delete-entry="'+esc(e.id)+
     '">Excluir</button>')+'</div></td></tr>'
@@ -316,6 +345,9 @@ function openEntry(e){
   $('entry-company').value=e?.company||
     (company==='all'?data().companies[0].id:company);
   $('entry-description').value=e?.description||'';
+  $('entry-category').innerHTML=M.cats.filter(c=>!['monthlyCmv','legacyStock'].includes(c.id)&&
+    (hasInventory()?!['cost','inventory'].includes(c.id)||c.id===e?.category:c.id!=='serviceCost')).map(c=>
+    '<option value="'+c.id+'">'+(c.group==='outside'?'Fora da DRE · ':'')+esc(c.name)+'</option>').join('');
   $('entry-category').value=e?.category||'sales';
   $('entry-amount').value=e?(e.amount/100).toFixed(2).replace('.',','):'';
   $('entry-date').value=e?.date||month+'-01';
@@ -415,6 +447,10 @@ document.addEventListener('click',event=>{
 
   if(b.dataset.deleteCompany){
     const id=b.dataset.deleteCompany;
+    if(canDeleteCompany()){
+      window.parent.caixaDeleteCompany(data().companies.find(c=>c.id===id));
+      return;
+    }
     if(data().entries.some(e=>e.company===id)){
       toast('A empresa possui lançamentos. Remova-os antes de excluir o cadastro.');
       return;
@@ -457,6 +493,7 @@ $('print').onclick=()=>window.print();
 
 $('mode').onclick=()=>{
   db.mode=db.mode==='demo'?'real':'demo';
+  if(view==='inventory-view')view='dashboard';
   company='all';
   page=1;
   render();
@@ -521,6 +558,7 @@ $('csv').onclick=()=>{
     ['Período',period()],
     ['Base','Competência / BRL']
   ];
+  if(pending(company,month,ytd).length)rows.push(['Situação','DRE provisória · fechamento de CMV pendente ou inconsistente']);
 
   if(view==='ledger-view'){
     rows.push([
@@ -549,11 +587,6 @@ $('csv').onclick=()=>{
     'text/csv;charset=utf-8'
   );
 };
-
-$('entry-category').innerHTML=M.cats.map(c=>
-  '<option value="'+c.id+'">'+
-  (c.group==='outside'?'Fora da DRE · ':'')+c.name+'</option>'
-).join('');
 
 render();
 if(!writable)warn('Não foi possível carregar sua DRE. A edição foi bloqueada para preservar os dados. Reabra esta área após verificar a conexão e a configuração no Supabase.');

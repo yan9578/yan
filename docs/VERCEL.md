@@ -83,3 +83,5 @@ Antes de publicar uma versão que habilita **Contas**, **Agenda** e **Configura�
 
 O livro usa a revisão da DRE para evitar sobrescritas concorrentes. Os backups da DRE no servidor incluem o livro integrado. Para restaurar em uma conta com operações integradas, use uma cópia que também contenha o livro. A restauração de uma cópia antiga que o omita é bloqueada para preservar as operações.
 
+Para liberar o fechamento de CMV e a exclusão permanente de empresas, aplique `cloud/007-inventory-and-company-deletion.sql` antes de publicar a versão correspondente. A migração mantém os livros existentes. O fechamento fica no livro integrado, e a exclusão confirmada no aplicativo remove os registros da empresa do caixa, da DRE e do livro integrado em uma única transação.
+

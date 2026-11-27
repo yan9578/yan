@@ -41,11 +41,21 @@
   </article>
  </div>
 </section>
+<dialog id="delete-company-dialog" aria-labelledby="delete-company-title" aria-describedby="delete-company-warning">
+ <h2 id="delete-company-title">Excluir empresa</h2>
+ <p id="delete-company-name"></p>
+ <p id="delete-company-warning"><strong>Atenção!</strong> Esta ação é irreversível. Ao excluir esta empresa, todos os dados e registros vinculados a ela serão permanentemente apagados e não poderão ser recuperados.</p>
+ <p id="delete-company-error" role="alert"></p>
+ <div class="delete-company-actions">
+  <button type="button" id="delete-company-cancel" class="secondary" autofocus>Cancelar</button>
+  <button type="button" id="delete-company-confirm" class="danger-button" disabled>Excluir permanentemente</button>
+ </div>
+</dialog>
 <div id="workspace" hidden>
 <aside><a class="brand" href="/">▥ <span>caixa<span class="light">claro</span><small>SEU NEGÓCIO EM DIA</small></span></a><div class="business"><span class="avatar">ME</span><div><span id="cash-company-name">Minha empresa</span><small>Empresa no Fluxo de Caixa</small></div></div><nav><button class="active" data-view="overview">◫ <span>Fluxo de caixa</span></button><button data-view="history">⇄ <span>Histórico</span></button><button id="ops-open" data-preview hidden>▣ <span>Contas</span></button><button id="agenda-open" data-preview hidden>▦ <span>Agenda</span></button><button id="dre-open">▤ <span>DRE · Resultado</span></button><button id="settings-open" data-preview hidden>⚙ <span>Configurações</span></button><button id="admin-open" hidden>◴ <span>Administração</span></button></nav><div class="aside-bottom"><span class="pill">PRIMEIRA VERSÃO</span><p>Menos planilha.<br>Mais clareza.</p><small>Um passo de cada vez para cuidar do seu caixa.</small></div></aside>
 <main><header><span>Meu negócio <span class="muted">/ <span id="breadcrumb">Visão geral</span></span></span><span class="local"><span id="account-name"></span> · Conta privada <button id="account-open">Minha conta</button><button id="logout">Sair</button></span></header><div id="preview-banner" data-preview hidden>Prévia local <span>Dados exclusivos deste teste</span></div><div id="save-status" class="save-status" role="status" aria-live="polite">Carregando seus dados…</div><section class="content" id="cash-content"><div class="heading"><div><span class="eyebrow">SEU DINHEIRO, SEM COMPLICAÇÃO</span><h1 id="title">Visão geral do caixa</h1><p id="cash-view-help">Acompanhe o dinheiro recebido e pago no período.</p></div><button class="primary" id="new">＋ Registrar no caixa</button></div>
 <section class="cash-company-panel" aria-label="Empresa do fluxo de caixa">
- <div class="cash-company-controls"><label for="cash-company">Empresa do Fluxo de Caixa<select id="cash-company"></select></label><div class="cash-company-actions"><button type="button" id="cash-company-new" class="primary">＋ Cadastrar empresa</button><button type="button" id="cash-company-edit" class="secondary">Editar empresa</button><button type="button" id="cash-company-refresh" class="secondary">Atualizar empresas</button></div></div>
+ <div class="cash-company-controls"><label for="cash-company">Empresa do Fluxo de Caixa<select id="cash-company"></select></label><div class="cash-company-actions"><button type="button" id="cash-company-new" class="primary">＋ Cadastrar empresa</button><button type="button" id="cash-company-edit" class="secondary">Editar empresa</button><button type="button" id="cash-company-refresh" class="secondary">Atualizar empresas</button><button type="button" id="cash-company-delete" class="danger-button" hidden>Excluir empresa</button></div></div>
  <p id="cash-company-status" role="status"></p>
  <div id="cash-legacy" hidden><p>Escolha a empresa dos lançamentos antigos. Se pertencerem a empresas diferentes, use Editar em cada lançamento.</p><label for="cash-legacy-target">Vincular todos os lançamentos sem empresa a<select id="cash-legacy-target"></select></label><button id="cash-legacy-assign" type="button" class="secondary">Vincular lançamentos</button></div>
 </section>

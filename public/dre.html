@@ -33,9 +33,11 @@
 <nav aria-label="Navegação">
   <button data-view="dashboard" class="active">Visão geral</button>
   <button data-view="dre-view">DRE detalhada</button>
+  <button id="inventory-tab" data-view="inventory-view" hidden>Fechamento do CMV</button>
   <button data-view="ledger-view">Lançamentos</button>
   <button data-view="companies-view">Empresas</button>
 </nav>
+<p id="inventory-report-status" class="warning" role="status" hidden></p>
 <div class="cards" id="cards">
   <div class="card"><label>Receita líquida</label>
     <strong class="financial-value" id="revenue"></strong><small>Receita bruta menos deduções</small>
@@ -67,6 +69,7 @@
       <p class="notes">Clique no mês para selecioná-lo. Valores negativos
         de receita aparecem nos relatórios; as barras mostram apenas
         valores positivos.</p>
+      <p id="inventory-chart-note" class="notes" hidden>* CMV pendente de fechamento.</p>
     </div>
     <div class="panel">
       <h2>O que os números estão dizendo?</h2>
@@ -119,6 +122,7 @@
     <p id="outside" class="notes"></p>
   </div>
 </section>
+<section id="inventory-view" hidden></section>
 <section id="ledger-view" hidden>
   <div class="panel">
     <div class="section-head">
@@ -204,6 +208,18 @@
     <button id="confirm" class="btn primary">Confirmar</button>
     <button class="btn" data-close>Voltar</button>
   </div>
+</dialog>
+<dialog id="inventory-adjustment-dialog">
+  <form id="inventory-adjustment-form">
+    <div class="dialog-head"><h2 id="inventory-adjustment-title">Ajuste de estoque</h2>
+      <button id="inventory-adjustment-close" class="close" type="button" aria-label="Fechar">×</button></div>
+    <label>Tipo<select name="kind" required></select></label>
+    <label>Referência ou descrição<input name="description" maxlength="120" required></label>
+    <label>Valor (R$)<input name="amount" inputmode="decimal" placeholder="0,00" required></label>
+    <p class="notes">Use um valor positivo. O tipo define se ele soma ou reduz as compras líquidas. As perdas já refletidas no estoque final são apenas identificadas.</p>
+    <p id="inventory-adjustment-error" class="inventory-error" role="alert"></p>
+    <button id="inventory-adjustment-save" class="btn primary">Salvar ajuste</button>
+  </form>
 </dialog>
 <div id="toast" role="status" aria-live="polite" hidden></div>
 

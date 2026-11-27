@@ -1,3 +1,4 @@
+import {tmpdir} from 'node:os';import {join} from 'node:path';
 import {chromium} from 'playwright';import assert from 'node:assert/strict';import {existsSync} from 'node:fs';
 import {platformDatabase,A} from '../test-support/platform-db.js';import {seedProvider,testConfig} from '../test-support/provider.js';
 import {installGoogleProvider} from '../test-support/google-provider.js';import {createPublicServer} from '../server/node-server.js';import {vercelTestServer} from '../test-support/vercel-server.js';
@@ -41,6 +42,6 @@ try{
  const {page:cancelled}=await client('cancelled@example.invalid',{cancel:true});await google(cancelled);await choose(cancelled,'Cancelar teste');await cancelled.locator('#auth-error').filter({hasText:'cancelou'}).waitFor();assert.equal(await cancelled.locator('#workspace').isVisible(),false);assert.ok(!cancelled.url().includes('fixture-private-error'));
  const empty=await browser.newContext(),expired=await empty.newPage();await expired.goto(config.origin+'/api/oauth/google/callback?code=forged-fixture-code');await expired.locator('#auth-error').filter({hasText:'prazo'}).waitFor();assert.equal((await expired.request.get(config.origin+'/api/me')).status(),401);
  assert.equal(captchaRequests,0);assert.equal(provider.deliveries.length,0);assert.ok(callbacks.length>=4);assert.ok(callbacks.every(c=>(!c.site||c.site==='cross-site')&&c.hasFlow),JSON.stringify(callbacks));assert.deepEqual(errors,[]);
- await newUser.screenshot({path:'/tmp/caixa-google-mobile.png',fullPage:true});
+ await newUser.screenshot({path:join(tmpdir(),'caixa-google-mobile.png'),fullPage:true});
  console.log('PASS: OAuth PKCE entre sites com cookie Lax, sessão Strict, provedor ausente, UUID/dados/admin preservados, duas máquinas, conta nova isolada, cancelamento e retorno inválido. Sem SMTP ou CAPTCHA nesse fluxo. Provedor Google/Supabase Auth simulado; navegador, APIs e PostgreSQL executados.');
 }finally{await browser.close();await new Promise(r=>{server.close(r);server.closeAllConnections();});await pg.close();}

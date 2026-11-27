@@ -11,11 +11,18 @@ const $=s=>document.querySelector(s),money=n=>(n/100).toLocaleString('pt-BR',{st
 // Em HTTP na rede local, randomUUID pode não estar disponível.
 function newId(){if(typeof globalThis.crypto?.randomUUID==='function')return globalThis.crypto.randomUUID();const bytes=new Uint8Array(16);globalThis.crypto.getRandomValues(bytes);return Array.from(bytes,b=>b.toString(16).padStart(2,'0')).join('');}
 let records=[],editing=null,view='overview',revision=0,saving=false;
+let sharedDreRevision=false;
 const businesses=createCashCompanies({getRecords:()=>records,persist,render,toast,isSaving:()=>saving});
-const operations=createOperations({businesses,manualRows:()=>records,renderCash:render,activate:activateOperations,toast});
+const operations=createOperations({businesses,manualRows:()=>records,renderCash:render,activate:activateOperations,toast,
+ onSave(previous,next){
+  if(!sharedDreRevision)return;
+  businesses.advanceDreRevision(previous,next);
+  $('#dre-frame').contentWindow?.advanceDreRevision?.(previous,next);
+ }});
 const allCompanyRows=()=>[...businesses.records(),...operations.cash().filter(r=>r.company===businesses.current()?.id)];
 window.caixaLinkedDre=book=>operations.dre(book);
 window.caixaOperationsEnabled=operations.enabled;
+window.caixaInventory={enabled:operations.cmvEnabled,getBook:operations.getBook,save:operations.saveInventory};
 const operationButtons={operations:'#ops-open',agenda:'#agenda-open',settings:'#settings-open'};
 function hideOperations(){
  $('#operations-area').hidden=true;
@@ -30,9 +37,68 @@ function activateOperations(area,title){
 }
 for(const [area,id] of Object.entries(operationButtons))$(id).onclick=()=>operations.openArea(area);
 $('#cash-open-link').onclick=()=>operations.openArea('operations');
-window.caixaDreRequest=async(method='GET',body)=>{const result=await api('dre',method,body);businesses.acceptDre(method==='GET'?result:{revision:result.revision,document:body.document});return result;};
+window.caixaDreRequest=async(method='GET',body)=>{
+ const result=await api('dre',method,body);
+ if(sharedDreRevision&&method==='PUT')operations.advanceRevision(body.revision,result.revision);
+ businesses.acceptDre(method==='GET'?result:{revision:result.revision,document:body.document});
+ return result;
+};
 async function loadRecords(){const data=await api('records');records=data.records;revision=data.revision;}
 function toast(text){$('#toast').textContent=text;$('#toast').style.display='block';clearTimeout(toast.timer);toast.timer=setTimeout(()=>$('#toast').style.display='none',4000);}
+const deleteDialog=$('#delete-company-dialog');
+const deleteConfirm=$('#delete-company-confirm');
+const deleteCancel=$('#delete-company-cancel');
+let companyToDelete=null,deleteDeadline=0,deleteTimer,deleting=false;
+function updateDeleteCountdown(){
+ const seconds=Math.max(0,Math.ceil((deleteDeadline-performance.now())/1000));
+ deleteConfirm.disabled=seconds>0;
+ deleteConfirm.textContent=seconds>0?'Excluir permanentemente ('+seconds+' s)':'Excluir permanentemente';
+ if(seconds>0)deleteTimer=setTimeout(updateDeleteCountdown,Math.max(1,deleteDeadline-performance.now()-(seconds-1)*1000));
+}
+function openCompanyDeletion(company){
+ if(!company?.id||deleteDialog.open)return;
+ if(saving||businesses.busy||operations.isSaving())return toast('Aguarde o salvamento em andamento.');
+ companyToDelete=company;
+ $('#delete-company-name').textContent=company.name;
+ $('#delete-company-error').textContent='';
+ deleteDeadline=performance.now()+5000;
+ updateDeleteCountdown();
+ deleteDialog.showModal();
+}
+function closeCompanyDeletion(){
+ clearTimeout(deleteTimer);
+ companyToDelete=null;
+ deleteDialog.close();
+}
+deleteCancel.onclick=closeCompanyDeletion;
+deleteDialog.oncancel=event=>{
+ event.preventDefault();
+ if(!deleting)closeCompanyDeletion();
+};
+deleteConfirm.onclick=async()=>{
+ if(!deleteDialog.open||!companyToDelete||deleting||performance.now()<deleteDeadline)return;
+ deleting=true;
+ deleteConfirm.disabled=deleteCancel.disabled=true;
+ deleteConfirm.textContent='Excluindo…';
+ $('#delete-company-error').textContent='';
+ try{
+  const result=await api('companies','DELETE',{id:companyToDelete.id});
+  records=result.cash.records;
+  revision=result.cash.revision;
+  operations.acceptBook(result.operations);
+  businesses.acceptDre(result.dre);
+  $('#dre-frame').contentWindow?.caixaCompanyDeleted?.(result.dre);
+  closeCompanyDeletion();
+  toast('Empresa excluída com sucesso.');
+ }catch(error){
+  $('#delete-company-error').textContent=error.message;
+ }finally{
+  deleting=false;
+  deleteCancel.disabled=false;
+  if(deleteDialog.open)updateDeleteCountdown();
+ }
+};
+$('#cash-company-delete').onclick=()=>openCompanyDeletion(businesses.current());
 async function persist(next){if(saving){toast('Aguarde o salvamento em andamento.');return false;}saving=true;businesses.paint();try{const data=await api('records','PUT',{records:next,revision});records=next;revision=data.revision;return true;}catch(err){if(err.status===401){location.reload();return false;}if(err.status===409){await loadRecords();render();}toast(err.message);return false;}finally{saving=false;businesses.paint();}}
 function period(p){const d=today();$('#from').value=p==='all'?'':p==='today'?d:d.slice(0,7)+'-01';$('#to').value=p==='all'?'':p==='today'?d:d.slice(0,7)+'-'+new Date(Number(d.slice(0,4)),Number(d.slice(5,7)),0).getDate();document.querySelectorAll('[data-period]').forEach(b=>b.classList.toggle('selected',b.dataset.period===p));render();}
 function filtered(){
@@ -109,7 +175,24 @@ $('#rows').onclick=async e=>{const edit=e.target.closest('[data-edit]'),del=e.ta
 for(const b of document.querySelectorAll('[data-period]'))b.onclick=()=>period(b.dataset.period);for(const id of ['from','to'])$('#'+id).onchange=()=>{document.querySelectorAll('[data-period]').forEach(b=>b.classList.remove('selected'));render();};$('#search').oninput=render;document.querySelectorAll('[data-view]').forEach(b=>b.onclick=()=>{hideOperations();$('#admin-area').hidden=true;$('#admin-open').classList.remove('active');$('#cash-content').hidden=false;$('#dre-area').hidden=true;$('#dre-open').classList.remove('active');view=b.dataset.view;track('cash');document.querySelectorAll('[data-view]').forEach(n=>n.classList.toggle('active',n===b));$('#title').textContent=view==='overview'?'Visão geral do caixa':'Histórico do caixa';$('#cash-view-help').textContent=view==='overview'?'Acompanhe o dinheiro recebido e pago no período.':'Consulte, filtre e edite movimentações já realizadas.';$('#breadcrumb').textContent=view==='overview'?'Visão geral':'Histórico';render();});
 $('#export').onclick=()=>{const rows=filteredHistory(filtered()).sort((a,b)=>b.date.localeCompare(a.date));if(!rows.length)return toast('Não há lançamentos neste período para exportar.');const url=URL.createObjectURL(new Blob([csv(rows)],{type:'text/csv;charset=utf-8;'})),a=document.createElement('a');a.href=url;a.download=`caixa-claro-${(businesses.current()?.name||'empresa').replace(/[^a-zA-Z0-9-]/g,'-')}-${today()}.csv`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);toast('Arquivo CSV exportado. Abra no Excel.');};
 $('#demo')?.addEventListener('click',async ()=>{if(businesses.records().length)return toast('Os exemplos só podem ser usados com o caixa desta empresa vazio.');if(!confirm('Adicionar lançamentos fictícios para experimentar? Eles serão identificados como exemplos.'))return;const now=new Date(),data=[];for(let i=0;i<7;i++){const d=new Date(now);d.setDate(d.getDate()-i);const day=`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;for(const [type,amount,description,method,category]of [['income',45000+i*1357,'[Exemplo] Vendas do dia',methods[i%4],'Vendas'],['expense',12000+i*839,'[Exemplo] Compra de materiais','Pix','Fornecedores']])data.push({id:newId(),type,amount,description,method,category,date:day,saleDate:day});}if(await persist([...records,...data.map(r=>businesses.attach(r,JSON.stringify(businesses.current().id)))])){period('all');toast('Exemplos adicionados. Você pode editar ou excluir cada um.');}});
-async function enter(user){await loadRecords();await businesses.load(user.id||user.username);await operations.load(user.operationsEnabled||user.preview,user.preview);document.body.append($('#analytics-banner'));setAccount(user);$('#admin-open').hidden=user.isAdmin!==true;$('#account-name').textContent=user.username;$('#login-screen').hidden=true;$('#workspace').hidden=false;period(operations.period());await showPendingNotice();}
+async function enter(user){
+ sharedDreRevision=!!user.operationsEnabled&&!user.preview;
+ await loadRecords();
+ await businesses.load(user.id||user.username);
+ await operations.load(user.operationsEnabled||user.preview,user.preview,user.cmvEnabled);
+ if(user.companyDeletion){
+  window.caixaDeleteCompany=openCompanyDeletion;
+  $('#cash-company-delete').hidden=false;
+ }
+ document.body.append($('#analytics-banner'));
+ setAccount(user);
+ $('#admin-open').hidden=user.isAdmin!==true;
+ $('#account-name').textContent=user.username;
+ $('#login-screen').hidden=true;
+ $('#workspace').hidden=false;
+ period(operations.period());
+ await showPendingNotice();
+}
 initAccount();initAdmin();
 const config=await initAuth(async()=>enter(await api('me')));
 if(config.preview){

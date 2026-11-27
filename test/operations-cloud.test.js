@@ -58,5 +58,8 @@ test('operações em nuvem preservam caixa e DRE legados, isolam contas e integr
   assert.deepEqual(exported.operations,registered.data);
   const snapshot=await collectBackup(provider,'test.supabase.co');
   assert.deepEqual(snapshot.datasets.dre_books[0].document.operationBook,registered.data.document);
+  await assert.rejects(pg.rpc('app_delete_company',{p_user:A,p_company:'retail'},'authenticated',B),error=>error.status===403);
+  assert.equal((await second('companies','DELETE',{id:'retail'})).status,404);
+  assert.deepEqual((await first('operations')).data,registered.data);
  }finally{await pg.close();}
 });

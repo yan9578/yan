@@ -3,6 +3,7 @@ import {opaque,sha256,secretKey,seal,unseal,cookie,cookies} from './security.js'
 import {email,password,validateRecords,validateDre,revision} from './validation.js';
 import {createHmac,createHash} from 'node:crypto';
 import {applyCommand,currentProfile,emptyOperations} from '../public/operations-model.js';
+import {inventoryBook} from '../public/inventory-model.js';
 
 class HttpError extends Error{constructor(status,message,code='REQUEST_FAILED',retryAfter){super(message);this.status=status;this.code=code;this.retryAfter=retryAfter;}}
 const invalid=()=>new HttpError(401,'Usuário, senha ou código inválidos.','AUTH_FAILED');
@@ -112,7 +113,7 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
   const respond=(status,data)=>new Response(JSON.stringify(data),{status,headers});
   let identity=null,feature=null;
   try{
-   if(!['GET','POST','PUT'].includes(method))throw new HttpError(405,'Método não permitido.');
+   if(!['GET','POST','PUT'].includes(method)&&!(method==='DELETE'&&path==='/api/companies'))throw new HttpError(405,'Método não permitido.');
    // O diagnóstico público pode ser aberto por um link externo. APIs da conta
    // e todas as alterações continuam exigindo as proteções de origem.
    const publicConfig=method==='GET'&&path==='/api/config',googleCallback=method==='GET'&&path===GOOGLE_CALLBACK;
@@ -249,7 +250,7 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
    identity=await authenticate(request);const token=identity.tokens.access,user=identity.user;
    if(path==='/api/me'&&method==='GET'){
     const admin=await provider.rpc('app_is_admin',{}, {token});await event('feature',user.id,'account');
-    return respond(200,{id:user.id,email:user.email,username:String(user.user_metadata?.display_name||user.email.split('@')[0]).slice(0,60),remember:identity.remember,isAdmin:admin===true,draftKey:hmac(user.id,'drafts'),operationsEnabled:true});
+    return respond(200,{id:user.id,email:user.email,username:String(user.user_metadata?.display_name||user.email.split('@')[0]).slice(0,60),remember:identity.remember,isAdmin:admin===true,draftKey:hmac(user.id,'drafts'),operationsEnabled:true,cmvEnabled:true,companyDeletion:true});
    }
    if(path==='/api/logout'&&method==='POST'){
     await provider.rpc('app_session',{p_action:'delete',p_hash:identity.hash},{service:true});clear('cc_session');clear('cc_challenge');clear('cc_recovery');clear('cc_visitor');
@@ -268,13 +269,26 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
      const today=new Intl.DateTimeFormat('sv-SE',{timeZone:'America/Sao_Paulo',dateStyle:'short'}).format(date);
      let document;
      try{
-      document=applyCommand(previous,body.command,{companies:saved.document.companies,today,now:date.toISOString()});
+      const {companies,entries}=saved.document;
+      document=applyCommand(previous,body.command,{companies,entries,today,now:date.toISOString(),cmvPreview:true});
       if(Buffer.byteLength(JSON.stringify({...saved.document,operationBook:document}))>1_950_000)throw Error('O livro financeiro atingiu o limite de armazenamento.');
      }catch(error){throw new HttpError(400,error.message,'INVALID_DATA');}
      const next=await provider.rpc('app_save_operations',{p_user:user.id,p_revision:saved.revision,p_book:document},{service:true});
      await event('save_success',user.id,feature);
      return respond(200,{revision:next,document});
     }
+   }
+   if(path==='/api/companies'&&method==='DELETE'){
+    feature='dre';
+    if(await provider.rpc('app_maintenance',{}, {service:true}))throw new HttpError(503,'O serviço está em manutenção. Tente mais tarde.','MAINTENANCE');
+    if(typeof body?.id!=='string'||!body.id.trim()||body.id.length>100)throw new HttpError(400,'Empresa inválida.','INVALID_DATA');
+    await rate('save-user',user.id,120,60);
+    const result=await provider.rpc('app_delete_company',{p_user:user.id,p_company:body.id},{service:true});
+    if(!result)throw new HttpError(404,'Esta empresa já foi excluída ou não está disponível na sua conta.');
+    const {revision,document}=result.dre;
+    await event('save_success',user.id,feature);
+    return respond(200,{cash:result.cash,dre:{revision,document:validateDre(document)},
+     operations:{revision,document:document.operationBook||emptyOperations()}});
    }
    if(path==='/api/records'||path==='/api/dre'){
     feature=path.endsWith('dre')?'dre':'cash';
@@ -292,6 +306,8 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
     if(method==='PUT'){
      await rate('save-user',user.id,120,60);let rev,data;
      try{rev=revision(body.revision);data=feature==='cash'?validateRecords(body.records):validateDre(body.document);}catch(err){throw new HttpError(400,err.message,'INVALID_DATA');}
+     if(feature==='dre'&&data.entries.some(e=>['monthlyCmv','legacyStock'].includes(e.category)))
+      throw new HttpError(400,'Os lançamentos gerados pelo fechamento não podem ser incluídos manualmente.','INVALID_DATA');
      if(feature==='cash'&&data.some(r=>r.account)){
       const book=(await readDre(token)).document.operationBook||emptyOperations();
       if(data.some(r=>r.account&&!currentProfile(book,r.company).accounts.some(a=>a.id===r.account)))throw new HttpError(400,'Conta financeira inválida.','INVALID_DATA');
@@ -299,8 +315,11 @@ export function createPublicApi(config,{provider=new Supabase(config),clock=()=>
      if(feature==='dre'){
       const book=(await readDre(token)).document.operationBook;
       const companies=new Set(data.companies.map(c=>c.id));
-      if(book&&[...book.operations,...book.profiles,...book.transfers].some(o=>!companies.has(o.company)))
-       throw new HttpError(409,'A empresa tem operações ou configurações vinculadas. Preserve-a para manter o histórico.','INVALID_STATE');
+      if(book){
+       const {closings,adjustments,reviews}=inventoryBook(book);
+       if([...book.operations,...book.profiles,...book.transfers,...closings,...adjustments,...reviews].some(o=>!companies.has(o.company)))
+        throw new HttpError(409,'A empresa tem operações ou configurações vinculadas. Use Excluir empresa para remover o cadastro e os registros.','INVALID_STATE');
+      }
      }
      const result=await provider.rpc(feature==='cash'?'save_cashbook':'save_dre_book',feature==='cash'?{expected_revision:rev,new_records:data}:{expected_revision:rev,new_document:data},{token});
      await event('save_success',user.id,feature);return respond(200,{revision:result});
